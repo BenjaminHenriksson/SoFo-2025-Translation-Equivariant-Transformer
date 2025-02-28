@@ -46,35 +46,6 @@ using Flux
             @test size(out) == (16, 16, 64, 2)
         end
 
-        # Test basic UNet forward pass
-        @testset "ResUNet Forward Pass" begin
-            model = Onion.ResUNet(
-                in_channels=3,
-                out_channels=3,
-                channels=[16, 32, 64],
-                time_embedding=true,
-                num_classes=10,
-                embedding_dim=32,
-                time_emb_dim=64
-            )
-
-            x = randn(Float32, 32, 32, 3, 2)
-            t = randn(Float32, 2)
-            labels = rand(1:10, 2)
-
-            # Test unconditional forward pass
-            y1 = model(x)
-            @test size(y1) == (32, 32, 3, 2)
-
-            # Test time-conditioned forward pass
-            y2 = model(x, t)
-            @test size(y2) == (32, 32, 3, 2)
-
-            # Test time+class-conditioned forward pass
-            y3 = model(x, t, labels)
-            @test size(y3) == (32, 32, 3, 2)
-        end
-
         # Test FlexibleUNet
         @testset "FlexibleUNet Forward Pass" begin
             model = Onion.FlexibleUNet(

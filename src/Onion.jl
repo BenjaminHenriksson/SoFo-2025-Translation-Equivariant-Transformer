@@ -29,7 +29,6 @@ export
     EncoderBlock,
     DecoderBlock,
     Bottleneck,
-    ResUNet,
     FlexibleUNet,
     # UNet helper functions:
     reverse_tuple,

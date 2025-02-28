@@ -77,41 +77,53 @@ function (te::TimeEmbedding)(t, labels)
 end
 
 """
-    ResidualBlock(channels::Int; kernel_size=3, time_emb=false, emb_dim=256)
+    ResidualBlock(channels::Int; kernel_size=3, time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
 
-A ResNet-style residual block with optional time embeddings.
+A ResNet-style residual block with optional time embeddings, dropout, and configurable activation.
 
 # Arguments
 - `channels::Int`: Number of input and output channels
 - `kernel_size=3`: Size of convolutional kernel
 - `time_emb=false`: Whether to use time embeddings
 - `emb_dim=256`: Dimension of time embeddings
+- `dropout=0.0`: Dropout probability (0.0 means no dropout)
+- `activation=relu`: Activation function to use (e.g., relu, swish, etc.)
 
 # Examples
 ```julia
-rb = ResidualBlock(64, time_emb=true, emb_dim=256)
+# Basic block with dropout
+rb = ResidualBlock(64, dropout=0.1)
+
+# Block with time embeddings and custom activation
+rb = ResidualBlock(64, time_emb=true, emb_dim=256, dropout=0.1, activation=swish)
+
+# Usage
 h = randn(Float32, 32, 32, 64, 1)
 t = randn(Float32, 256, 1)
 h = rb(h, t)
 ```
 """
-struct ResidualBlock{C1,C2,N1,N2,D}
+struct ResidualBlock{C1,C2,N1,N2,D,DO,A}
     conv1::C1
     conv2::C2
     norm1::N1
     norm2::N2
     time_mlp::D
+    dropout::DO
+    activation::A
 end
 
 Flux.@layer ResidualBlock
 
-function ResidualBlock(channels::Int; kernel_size=3, time_emb=false, emb_dim=256)
+function ResidualBlock(channels::Int; kernel_size=3, time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
     return ResidualBlock(
         Conv((kernel_size, kernel_size), channels=>channels, pad=1),
         Conv((kernel_size, kernel_size), channels=>channels, pad=1),
         BatchNorm(channels),
         BatchNorm(channels),
-        time_emb ? Dense(emb_dim, channels, swish) : identity
+        time_emb ? Dense(emb_dim, channels, swish) : identity,
+        Dropout(dropout),
+        activation
     )
 end
 
@@ -119,68 +131,78 @@ function (rb::ResidualBlock)(x)
     identity = x
     out = rb.conv1(x)
     out = rb.norm1(out)
-    out = relu.(out)
+    out = rb.activation.(out)
+    out = rb.dropout(out)
     out = rb.conv2(out)
     out = rb.norm2(out)
-    relu.(out + identity)
+    out = out + identity
+    out = rb.activation.(out)
+    rb.dropout(out)
 end
 
 function (rb::ResidualBlock)(x, t)
     identity = x
     out = rb.conv1(x)
     out = rb.norm1(out)
-    out = relu.(out)
+    out = rb.activation.(out)
+    out = rb.dropout(out)
     t_proj = rb.time_mlp(t)
     t_emb = reshape(t_proj, (1, 1, size(t_proj)...))
     out = out .+ t_emb
     out = rb.conv2(out)
     out = rb.norm2(out)
-    relu.(out + identity)
+    out = out + identity
+    out = rb.activation.(out)
+    rb.dropout(out)
 end
 
 """
-    EncoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256)
+    EncoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
 
-An encoder block for UNet architecture with optional time embeddings.
+An encoder block for UNet architecture with optional time embeddings and dropout.
 
 # Arguments
 - `in_channels::Int`: Number of input channels
 - `out_channels::Int`: Number of output channels
 - `time_emb=false`: Whether to use time embeddings
 - `emb_dim=256`: Dimension of time embeddings
+- `dropout=0.0`: Dropout probability (0.0 means no dropout)
+- `activation=relu`: Activation function to use
 
 # Examples
 ```julia
-enc = EncoderBlock(3, 64, time_emb=true, emb_dim=256)
+enc = EncoderBlock(3, 64, time_emb=true, emb_dim=256, dropout=0.1)
 h = randn(Float32, 32, 32, 3, 1)
 t = randn(Float32, 256, 1)
 skip, h = enc(h, t)
 ```
 """
-struct EncoderBlock{C,N,R,P,D}
-    conv::C
+struct EncoderBlock{C,N,R,P,D,A}
+    conv::C  # First convolution before residual block needed to adapt channels (green arrow in diagram)
     norm::N
     residual::R
     pool::P
     time_mlp::D
+    activation::A
 end
 
 Flux.@layer EncoderBlock
 
-function EncoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256)
+function EncoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
     return EncoderBlock(
         Conv((3, 3), in_channels=>out_channels, pad=1),
         BatchNorm(out_channels),
-        ResidualBlock(out_channels, time_emb=time_emb, emb_dim=emb_dim),
+        ResidualBlock(out_channels, time_emb=time_emb, emb_dim=emb_dim, dropout=dropout, activation=activation),
         MaxPool((2,2)),
-        time_emb ? Dense(emb_dim, out_channels, swish) : identity
+        time_emb ? Dense(emb_dim, out_channels, swish) : identity,
+        activation
     )
 end
 
 function (eb::EncoderBlock)(x)
     x = eb.conv(x)
     x = eb.norm(x)
-    x = relu.(x)
+    x = eb.activation.(x)
     x = eb.residual(x)
     return x, eb.pool(x)
 end
@@ -188,7 +210,7 @@ end
 function (eb::EncoderBlock)(x, t)
     x = eb.conv(x)
     x = eb.norm(x)
-    x = relu.(x)
+    x = eb.activation.(x)
     t_proj = eb.time_mlp(t)
     t_emb = reshape(t_proj, (1, 1, size(t_proj)...))
     x = x .+ t_emb
@@ -197,103 +219,103 @@ function (eb::EncoderBlock)(x, t)
 end
 
 """
-    Bottleneck(channels::Int; time_emb=false, emb_dim=256)
+    Bottleneck(channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
 
-A bottleneck block for UNet architecture with optional time embeddings.
+A bottleneck block for UNet architecture with optional time embeddings and dropout.
 
 # Arguments
 - `channels::Int`: Number of input and output channels
 - `time_emb=false`: Whether to use time embeddings
 - `emb_dim=256`: Dimension of time embeddings
+- `dropout=0.0`: Dropout probability (0.0 means no dropout)
+- `activation=relu`: Activation function to use
 
 # Examples
 ```julia
-bn = Bottleneck(256, time_emb=true, emb_dim=256)
+bn = Bottleneck(256, time_emb=true, emb_dim=256, dropout=0.2)
 h = randn(Float32, 8, 8, 256, 1)
 t = randn(Float32, 256, 1)
 h = bn(h, t)
 ```
 """
-struct Bottleneck{C1,C2,N1,N2,R,D}
+struct Bottleneck{C1,N1,R,D,A}
     conv1::C1
-    conv2::C2
     norm1::N1
-    norm2::N2
     residual::R
     time_mlp::D
+    activation::A
 end
 
 Flux.@layer Bottleneck
 
-function Bottleneck(channels::Int; time_emb=false, emb_dim=256)
+function Bottleneck(channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
     return Bottleneck(
         Conv((3, 3), channels=>channels, pad=1),
-        Conv((3, 3), channels=>channels, pad=1),
         BatchNorm(channels),
-        BatchNorm(channels),
-        ResidualBlock(channels, time_emb=time_emb, emb_dim=emb_dim),
-        time_emb ? Dense(emb_dim, channels, swish) : identity
+        ResidualBlock(channels, time_emb=time_emb, emb_dim=emb_dim, dropout=dropout, activation=activation),
+        time_emb ? Dense(emb_dim, channels, swish) : identity,
+        activation
     )
 end
 
 function (b::Bottleneck)(x)
     x = b.conv1(x)
     x = b.norm1(x)
-    x = relu.(x)
-    x = b.conv2(x)
-    x = b.norm2(x)
+    x = b.activation.(x)
     b.residual(x)
 end
 
 function (b::Bottleneck)(x, t)
     x = b.conv1(x)
     x = b.norm1(x)
-    x = relu.(x)
+    x = b.activation.(x)
     t_proj = b.time_mlp(t)
     t_emb = reshape(t_proj, (1, 1, size(t_proj)...))
     x = x .+ t_emb
-    x = b.conv2(x)
-    x = b.norm2(x)
     b.residual(x, t)
 end
 
 """
-    DecoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256)
+    DecoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
 
-A decoder block for UNet architecture with optional time embeddings.
+A decoder block for UNet architecture with optional time embeddings and dropout.
 
 # Arguments
 - `in_channels::Int`: Number of input channels
 - `out_channels::Int`: Number of output channels
 - `time_emb=false`: Whether to use time embeddings
 - `emb_dim=256`: Dimension of time embeddings
+- `dropout=0.0`: Dropout probability (0.0 means no dropout)
+- `activation=relu`: Activation function to use
 
 # Examples
 ```julia
-dec = DecoderBlock(256, 128, time_emb=true, emb_dim=256)
+dec = DecoderBlock(256, 128, time_emb=true, emb_dim=256, dropout=0.1)
 h = randn(Float32, 8, 8, 256, 1)
 skip = randn(Float32, 16, 16, 128, 1)
 t = randn(Float32, 256, 1)
 h = dec(h, skip, t)
 ```
 """
-struct DecoderBlock{U,C,N,R,D}
+struct DecoderBlock{U,C,N,R,D,A}
     upsample::U
     conv::C
     norm::N
     residual::R
     time_mlp::D
+    activation::A
 end
 
 Flux.@layer DecoderBlock
 
-function DecoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256)
+function DecoderBlock(in_channels::Int, out_channels::Int; time_emb=false, emb_dim=256, dropout=0.0, activation=relu)
     return DecoderBlock(
         Upsample(:bilinear, scale=2),
         Conv((3, 3), in_channels * 2=>out_channels, pad=1),
         BatchNorm(out_channels),
-        ResidualBlock(out_channels, time_emb=time_emb, emb_dim=emb_dim),
-        time_emb ? Dense(emb_dim, out_channels, swish) : identity
+        ResidualBlock(out_channels, time_emb=time_emb, emb_dim=emb_dim, dropout=dropout, activation=activation),
+        time_emb ? Dense(emb_dim, out_channels, swish) : identity,
+        activation
     )
 end
 
@@ -302,7 +324,7 @@ function (db::DecoderBlock)(x, skip_connection)
     x = cat(x, skip_connection, dims=3)
     x = db.conv(x)
     x = db.norm(x)
-    x = relu.(x)
+    x = db.activation.(x)
     db.residual(x)
 end
 
@@ -311,130 +333,9 @@ function (db::DecoderBlock)(x, skip_connection, t)
     x = cat(x, skip_connection, dims=3)
     x = db.conv(x)
     x = db.norm(x)
-    x = relu.(x)
+    x = db.activation.(x)
     t_proj = db.time_mlp(t)
     t_emb = reshape(t_proj, (1, 1, size(t_proj)...))
     x = x .+ t_emb
     db.residual(x, t)
-end
-
-"""
-    ResUNet(;
-        in_channels=3,
-        out_channels=3,
-        channels=[64, 128, 256],
-        time_embedding=false,
-        num_classes=0,
-        embedding_dim=128,
-        time_emb_dim=256
-    )
-
-A residual UNet architecture with optional time and class embeddings, useful for diffusion models and image-to-image tasks.
-
-# Arguments
-- `in_channels=3`: Number of input channels
-- `out_channels=3`: Number of output channels
-- `channels=[64, 128, 256]`: Channel dimensions at each level
-- `time_embedding=false`: Whether to use time embeddings
-- `num_classes=0`: Number of class labels for conditional generation
-- `embedding_dim=128`: Dimension for class embeddings
-- `time_emb_dim=256`: Dimension for time embeddings
-
-# Examples
-```julia
-model = ResUNet(
-    in_channels=3,
-    out_channels=3,
-    channels=[64, 128, 256],
-    time_embedding=true,
-    num_classes=10,
-    embedding_dim=128,
-    time_emb_dim=256
-)
-x = randn(Float32, 32, 32, 3, 1)
-t = randn(Float32, 1)
-labels = [5]
-y = model(x, t, labels)
-```
-"""
-struct ResUNet{E1,E2,E3,B,D3,D2,D1,FC,T}
-    enc1::E1
-    enc2::E2
-    enc3::E3
-    bottleneck::B
-    dec3::D3
-    dec2::D2
-    dec1::D1
-    final_conv::FC
-    time_embed::T
-end
-
-Flux.@layer ResUNet
-
-function ResUNet(;
-    in_channels=3,
-    out_channels=3,
-    channels=[64, 128, 256],
-    time_embedding=false,
-    num_classes=0,
-    embedding_dim=128,
-    time_emb_dim=256
-)
-    return ResUNet(
-        EncoderBlock(in_channels, channels[1], time_emb=time_embedding, emb_dim=time_emb_dim),
-        EncoderBlock(channels[1], channels[2], time_emb=time_embedding, emb_dim=time_emb_dim),
-        EncoderBlock(channels[2], channels[3], time_emb=time_embedding, emb_dim=time_emb_dim),
-        Bottleneck(channels[3], time_emb=time_embedding, emb_dim=time_emb_dim),
-        DecoderBlock(channels[3], channels[2], time_emb=time_embedding, emb_dim=time_emb_dim),
-        DecoderBlock(channels[2], channels[1], time_emb=time_embedding, emb_dim=time_emb_dim),
-        DecoderBlock(channels[1], channels[1], time_emb=time_embedding, emb_dim=time_emb_dim),
-        Conv((1, 1), channels[1]=>out_channels),
-        time_embedding ? TimeEmbedding(time_emb_dim, num_classes, embedding_dim) : identity
-    )
-end
-
-function (model::ResUNet)(x)
-    skip1, x = model.enc1(x)
-    skip2, x = model.enc2(x)
-    skip3, x = model.enc3(x)
-
-    x = model.bottleneck(x)
-
-    x = model.dec3(x, skip3)
-    x = model.dec2(x, skip2)
-    x = model.dec1(x, skip1)
-
-    model.final_conv(x)
-end
-
-function (model::ResUNet)(x, t::T) where T <: AbstractArray
-    t = model.time_embed(t)
-
-    skip1, x = model.enc1(x, t)
-    skip2, x = model.enc2(x, t)
-    skip3, x = model.enc3(x, t)
-
-    x = model.bottleneck(x, t)
-
-    x = model.dec3(x, skip3, t)
-    x = model.dec2(x, skip2, t)
-    x = model.dec1(x, skip1, t)
-
-    model.final_conv(x)
-end
-
-function (model::ResUNet)(x, t::T, labels::L) where {T <: AbstractArray, L <: AbstractArray}
-    t = model.time_embed(t, labels)
-
-    skip1, x = model.enc1(x, t)
-    skip2, x = model.enc2(x, t)
-    skip3, x = model.enc3(x, t)
-
-    x = model.bottleneck(x, t)
-
-    x = model.dec3(x, skip3, t)
-    x = model.dec2(x, skip2, t)
-    x = model.dec1(x, skip1, t)
-
-    model.final_conv(x)
 end
