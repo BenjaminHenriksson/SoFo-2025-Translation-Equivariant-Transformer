@@ -106,4 +106,11 @@ using Flux
             @test size(y) == (32, 32, 8, 2)
         end
     end
+
+    @testset "DyT" begin
+        dyt = Onion.DyT(256)
+        x = randn(Float32, 256, 2)
+        y = dyt(x)
+        @test size(y) == size(x)
+    end
 end

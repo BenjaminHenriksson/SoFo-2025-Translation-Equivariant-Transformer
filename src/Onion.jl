@@ -5,6 +5,7 @@ using Flux, LinearAlgebra
 include("shared.jl")
 include("AdaLN.jl")
 include("RMSNorm.jl")
+include("DyT.jl")
 include("StarGLU.jl")
 include("GQAttention.jl")
 include("RoPE.jl")
@@ -17,6 +18,7 @@ export
     #layers:
     AdaLN,
     RMSNorm,
+    DyT,
     StarGLU,
     GQAttention,
     RoPE,
