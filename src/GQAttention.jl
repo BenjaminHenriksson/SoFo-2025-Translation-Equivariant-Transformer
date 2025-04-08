@@ -136,6 +136,38 @@ end
 
 Flux.@layer TransformerBlock
 
+
+
+struct AdaTransformerBlock{A,F,AN,FN}
+    attention::A
+    feed_forward::F
+    attention_norm::AN
+    ffn_norm::FN
+end
+
+function AdaTransformerBlock(
+    dim::Int, n_heads::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim, cond_dim;
+    norm_eps=1f-5, qkv_bias=false
+)
+    AdaTransformerBlock(
+        Attention(dim, n_heads, n_kv_heads; qkv_bias),
+        StarGLU(dim, ff_hidden_dim),
+        AdaLN(dim, cond_dim),
+        AdaLN(dim, cond_dim)
+    )
+end
+
+function (block::AdaTransformerBlock)(x, cond, rope, mask)
+    h = x + block.attention(block.attention_norm(x, cond), 0, rope, mask)
+    out = h + block.feed_forward(block.ffn_norm(h, cond))
+    return out
+end
+
+Flux.@layer AdaTransformerBlock
+
+
+
+
 function causal_mask(h::AbstractArray{T}) where T<:AbstractFloat
     Flux.ChainRulesCore.ignore_derivatives() do
         dim, seqlen, batch = size(h)
