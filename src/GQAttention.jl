@@ -146,7 +146,7 @@ struct AdaTransformerBlock{A,F,AN,FN}
 end
 
 function AdaTransformerBlock(
-    dim::Int, n_heads::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim, cond_dim;
+    dim::Int, cond_dim::Int, n_heads::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
     norm_eps=1f-5, qkv_bias=false
 )
     AdaTransformerBlock(
