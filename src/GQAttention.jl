@@ -55,20 +55,16 @@ repeat_kv(x::AbstractArray, n_rep::Int) = isone(n_rep) ? x : repeat(x, 1, n_rep,
 
 # Backward compatibility method for self-attention with existing interface
 function (attn::Attention)(x::AbstractArray{T}, start_pos::Integer=1, rope=nothing, mask=0) where T
-    return attn(x, nothing, nothing, start_pos, rope, mask)
+    return attn(x, x, start_pos, rope, mask)
 end
 
-function (attn::Attention)(query::AbstractArray{T}, key::Union{Nothing, AbstractArray{T}}=nothing, value::Union{Nothing, AbstractArray{T}}=nothing, start_pos::Integer=1, rope=nothing, mask=0) where T
-    # If key and value are not provided, use query (self-attention)
-    key = isnothing(key) ? query : key
-    value = isnothing(value) ? key : value
+function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, start_pos::Integer=1, rope=nothing, mask=0) where T    
+    _, q_seqlen, q_batch = size(x_query)
+    _, k_seqlen, k_batch = size(x_key)
     
-    _, q_seqlen, q_batch = size(query)
-    _, k_seqlen, k_batch = size(key)
-    
-    xq = attn.wq(query)
-    xk = attn.wk(key)
-    xv = attn.wv(value)
+    xq = attn.wq(x_query)
+    xk = attn.wk(x_key)
+    xv = attn.wv(x_key)
     
     xq = reshape(xq, (attn.head_dim, attn.n_heads, q_seqlen, q_batch))
     xk = reshape(xk, (attn.head_dim, attn.n_kv_heads, k_seqlen, k_batch))
