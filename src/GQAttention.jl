@@ -4,6 +4,13 @@ function sdpa(xq::AbstractArray{T}, xk::AbstractArray{T}, xv::AbstractArray{T}, 
     return batched_mul(xv, A)
 end
 
+#For the case where the mask differs for each element in a batch
+function sdpa(xq::AbstractArray{T}, xk::AbstractArray{T}, xv::AbstractArray{T}, head_dim::Int, mask::AbstractArray{T, 3}) where T
+    d1,d2 = size(xk, 2), size(xq, 2)
+    A = softmax(reshape(reshape(batched_mul(batched_transpose(xk), xq) / sqrt(T(head_dim)), d1, d2, :, size(mask, 3)) .+ reshape(mask, d1, d2, 1, :), d1, d2, :), dims=1)
+    return batched_mul(xv, A)
+end
+
 """
     Attention(dim::Int, n_heads::Int, n_kv_heads=n_heads; qkv_bias=false)
 
