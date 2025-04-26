@@ -11,6 +11,7 @@ include("GQAttention.jl")
 include("RoPE.jl")
 include("UNet.jl")
 include("FlexibleUNet.jl")
+include("FSQ.jl")
 
 export
     #shared:
@@ -23,7 +24,9 @@ export
     GQAttention,
     RoPE,
     TransformerBlock,
-    Attention
+    Attention,
+    FSQ,
+    recode,
     # UNet components:
     GaussianFourierProjection,
     TimeEmbedding,
