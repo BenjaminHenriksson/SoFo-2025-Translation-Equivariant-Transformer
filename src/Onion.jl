@@ -26,7 +26,8 @@ export
     TransformerBlock,
     Attention,
     FSQ,
-    recode,
+    chunk,
+    unchunk,
     # UNet components:
     GaussianFourierProjection,
     TimeEmbedding,
