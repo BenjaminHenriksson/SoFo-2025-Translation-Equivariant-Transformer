@@ -28,6 +28,8 @@ export
     FSQ,
     chunk,
     unchunk,
+    self_att_padding_mask,
+    cross_att_padding_mask,
     # UNet components:
     GaussianFourierProjection,
     TimeEmbedding,
