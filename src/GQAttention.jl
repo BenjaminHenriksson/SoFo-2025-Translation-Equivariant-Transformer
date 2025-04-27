@@ -12,6 +12,29 @@ function sdpa(xq::AbstractArray{T}, xk::AbstractArray{T}, xv::AbstractArray{T}, 
 end
 
 """
+    self_att_padding_mask(padmask; T = Float32)
+
+Takes a sequence-level `padmask` (ie. length-by-batch, where 0 indicates a padded position) and returns a (non-causal) self-attention mask
+that is length-by-length-by-batch and which prevents information flow from padded positions to unpadded positions.
+"""
+function self_att_padding_mask(padmask; T = Float32)
+    pm = T.(padmask)
+    mask = log.(clamp.(reshape(pm, 1, size(pm)...) .* reshape(pm, size(pm,1), 1, size(pm,2)) .+ Diagonal(similar(padmask, size(padmask,1)) .= 1), 0, 1))
+    return mask
+end
+
+"""
+    cross_att_padding_mask(padmask, other_dim; T = Float32)
+
+Takes a sequence-level `padmask` and a dimension `other_dim` and returns a cross-attention mask that is length-by-other_dim-by-batch.
+This prevents information flow from padded `key` positions to any `query` positions (but ignores padding in the `query` positions, because nothing should flow out of those).
+"""
+function cross_att_padding_mask(padmask, other_dim; T = Float32)
+    pm = T.(padmask)
+    return log.(reshape(pm, size(pm,1), 1, size(pm,2)) .* (similar(pm, 1, other_dim, size(pm,2)) .= 1))
+end
+
+"""
     Attention(dim::Int, n_heads::Int, n_kv_heads=n_heads; qkv_bias=false)
 
 Attention layer that supports both self-attention and cross-attention (as in Llama3).
