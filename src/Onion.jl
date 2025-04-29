@@ -12,6 +12,7 @@ include("RoPE.jl")
 include("UNet.jl")
 include("FlexibleUNet.jl")
 include("FSQ.jl")
+include("IPAHelpers.jl")
 
 export
     #shared:
@@ -26,6 +27,9 @@ export
     TransformerBlock,
     Attention,
     FSQ,
+    Framemover,
+    IPAblock,
+    pair_encode,
     chunk,
     unchunk,
     self_att_padding_mask,
