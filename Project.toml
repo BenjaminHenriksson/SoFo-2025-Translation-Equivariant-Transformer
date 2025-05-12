@@ -1,7 +1,7 @@
 name = "Onion"
 uuid = "fdebf6c2-71da-43a1-b539-c3bc3e09c5c6"
 authors = ["murrellb <murrellb@gmail.com> and contributors"]
-version = "0.0.1"
+version = "0.1.0"
 
 [deps]
 BatchedTransformations = "8ba27c4b-52b5-4b10-bc66-a4fda05aa11b"
@@ -12,7 +12,7 @@ NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 [compat]
 BatchedTransformations = "0.5.7"
 Flux = "0.16.3"
-LinearAlgebra = "1.11.0"
+LinearAlgebra = "1"
 NNlib = "0.9.27"
 julia = "1.9"
 
