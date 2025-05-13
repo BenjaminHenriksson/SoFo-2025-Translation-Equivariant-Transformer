@@ -9,7 +9,7 @@
 
 ```julia
 using Pkg
-pkg"registry add https://github.com/MurrellGroup/MurrellGroupRegistry
+pkg"registry add https://github.com/MurrellGroup/MurrellGroupRegistry"
 pkg"add Onion"
 ```
 
