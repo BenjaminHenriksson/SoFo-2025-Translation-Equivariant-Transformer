@@ -5,6 +5,14 @@
 [![Build Status](https://github.com/MurrellGroup/Onion.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/MurrellGroup/Onion.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/MurrellGroup/Onion.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/MurrellGroup/Onion.jl)
 
+## Installation
+
+```julia
+using Pkg
+pkg"registry add https://github.com/MurrellGroup/MurrellGroupRegistry
+pkg"add Onion"
+"```
+
 ## Rules
 
 - Layers should be structs.
