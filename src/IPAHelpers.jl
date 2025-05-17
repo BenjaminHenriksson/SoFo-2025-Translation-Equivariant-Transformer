@@ -71,3 +71,24 @@ function (ipa_block::IPAblock)(g, frames::Rigid, x, pair_feats; cond = nothing)
     x = x + ipa_block.ff(lncall(ipa_block.ln2,x, cond)) ./ 2
     return x
 end
+
+
+"""
+   CrossFrameIPA(dim::Int, ipa; ln = Flux.LayerNorm(dim))
+
+Constructs a layer that takes one embedding, and two sets of frames. Runs layernorm on the embedding, and then makes a cross-attention IPA call with
+one embedding but two frames. Useful for self-conditioning where two sets of frames need to communicate with each other.
+"""
+struct CrossFrameIPA{A,B}
+    ln::A
+    ipa::B
+end
+Flux.@layer CrossFrameIPA
+CrossFrameIPA(dim::Int, ipa; ln = Flux.LayerNorm(dim)) = CrossFrameIPA(ln, ipa)
+function (ipa_block::CrossFrameIPA)(frames1::Rigid, frames2::Rigid, x; pair_feats = nothing, cond = nothing, mask = 0, kwargs...)
+    T1 = (frames1.composed.inner.values, frames1.composed.outer.values)
+    T2 = (frames2.composed.inner.values, frames2.composed.outer.values)
+    lnx = Onion.lncall(ipa_block.ln, x, cond)
+    x = x + ipa_block.ipa(T1, lnx, T2, lnx, zij = pair_feats, mask = mask, show_warnings = false, kwargs...) ./ 2
+    return x
+end
