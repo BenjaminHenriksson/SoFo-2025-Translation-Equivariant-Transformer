@@ -1,3 +1,5 @@
+import BatchedTransformations as BT
+
 batched_pairs(operator, a, b) = operator.(reshape(a, 1, :, size(a,2)),reshape(b, :, 1, size(b,2)))
 
 function pair_encode(resinds, chainids)
@@ -25,7 +27,7 @@ function Framemover(dim::Int; init_gain = 0.1f0)
     return Framemover(loc_decode, rot_decode)
 end
 
-bcd2rot(bcds) = convert(Rotation, BatchedTransformations.QuaternionRotation(imaginary_to_quaternion_rotations(bcds)))
+bcd2rot(bcds) = convert(Rotation, BT.QuaternionRotation(imaginary_to_quaternion_rotations(bcds)))
 
 function (fm::Framemover)(frames, x; t = 0)
     bcds = fm.rot_decode(x) .* glut(1 .- t, ndims(x), 0)
@@ -58,7 +60,7 @@ lncall(ln, x, cond::Nothing) = ln(x)
 
 #InvariantPointAttention.jl:
 function (ipa_block::IPAblock)(frames::Rigid, x; pair_feats = nothing, cond = nothing, mask = 0, kwargs...)
-    T = (frames.composed.inner.values, frames.composed.outer.values)
+    T = values(linear(frames)), values(translation(frames))
     lnx = lncall(ipa_block.ln1,x, cond)
     x = x + ipa_block.ipa(T, lnx, T, lnx, zij = pair_feats, mask = mask, kwargs...) ./ 2
     x = x + ipa_block.ff(lncall(ipa_block.ln2,x, cond)) ./ 2
@@ -86,8 +88,8 @@ end
 Flux.@layer CrossFrameIPA
 CrossFrameIPA(dim::Int, ipa; ln = Flux.LayerNorm(dim)) = CrossFrameIPA(ln, ipa)
 function (ipa_block::CrossFrameIPA)(frames1::Rigid, frames2::Rigid, x; pair_feats = nothing, cond = nothing, mask = 0, kwargs...)
-    T1 = (frames1.composed.inner.values, frames1.composed.outer.values)
-    T2 = (frames2.composed.inner.values, frames2.composed.outer.values)
+    T1 = values(linear(frames1)), values(translation(frames1))
+    T2 = values(linear(frames2)), values(translation(frames2))
     lnx = Onion.lncall(ipa_block.ln, x, cond)
     x = x + ipa_block.ipa(T1, lnx, T2, lnx, zij = pair_feats, mask = mask, show_warnings = false, kwargs...) ./ 2
     return x
