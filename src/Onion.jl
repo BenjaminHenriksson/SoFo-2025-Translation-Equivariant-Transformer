@@ -29,6 +29,7 @@ export
     FSQ,
     Framemover,
     IPAblock,
+    CrossFrameIPA,
     pair_encode,
     chunk,
     unchunk,
