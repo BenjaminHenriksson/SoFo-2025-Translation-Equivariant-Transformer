@@ -48,4 +48,3 @@ function (rope::RoPE)(x)
         x2 .* rope.cos .+ x1 .* rope.sin
     )
 end
-#This requires the RoPE dims to be fixed in advance. Wtf?
