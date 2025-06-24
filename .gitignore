@@ -1,6 +1,7 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
+*.pdb
 /docs/Manifest.toml
 /docs/build/
 DLProteinFormats.jl
