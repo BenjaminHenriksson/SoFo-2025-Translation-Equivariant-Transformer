@@ -1,0 +1,10 @@
+name = "TranslationalEquivariance"
+uuid = "bbb16414-76bb-4a19-8cae-5f80ba3529af"
+authors = ["BenjaminHenriksson <abenjaminhenriksson@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+DLProteinFormats = "df93d313-1126-4eb6-ac29-b325d5898587"
+
+[compat]
+DLProteinFormats = "0.1.2"
