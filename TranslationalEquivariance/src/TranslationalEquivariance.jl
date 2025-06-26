@@ -2,7 +2,12 @@ module TranslationalEquivariance
 
 export greet
 
-greet() = print("Hello World!!!!!")
+"""
+    greet()
+
+Prints a friendly greeting.
+"""
+greet() = println("Hello World!!!!!")
 
 include("utils.jl")
 export f
