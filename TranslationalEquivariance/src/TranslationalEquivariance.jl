@@ -1,10 +1,6 @@
 module TranslationalEquivariance
 
-export greet
-
-greet() = print("Hello World!!!!!")
-
-include("utils.jl")
-export f
+include("multidimensional_rope.jl")
+export multidimensional_rope
 
 end # module TranslationalEquivariance
