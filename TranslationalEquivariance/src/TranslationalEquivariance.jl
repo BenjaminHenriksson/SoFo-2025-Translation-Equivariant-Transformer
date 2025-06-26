@@ -1,6 +1,7 @@
 module TranslationalEquivariance
 
 include("multidimensional_rope.jl")
-export multidimensional_rope
+include("learnableRoPE.jl")
+export multidimensional_rope, LearnableRoPE, RoPE
 
 end # module TranslationalEquivariance
