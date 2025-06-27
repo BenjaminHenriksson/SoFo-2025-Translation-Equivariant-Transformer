@@ -3,7 +3,7 @@ struct RoPE{A<:AbstractArray}
     sin::A
 end
 
-Flux.@functor RoPE
+Flux.@layer RoPE
 Flux.trainable(::RoPE) = ()
 
 Base.getindex(rope::RoPE, i) = RoPE(rope.cos[:, i, :, :], rope.sin[:, i, :, :])
@@ -22,7 +22,7 @@ struct LearnableRoPE{A<:AbstractVector}
     theta::A
 end
 
-Flux.@functor LearnableRoPE
+Flux.@layer LearnableRoPE
 
 function LearnableRoPE(dim::Int; theta=10000f0)
     LearnableRoPE(param(fill(theta, dim ÷ 2)))
