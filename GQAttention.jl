@@ -189,13 +189,14 @@ end
 # rope argument deprecated due to block.rope
 function (block::TransformerBlock)(x, start_pos, rope, x_pos = nothing, mask = 0)
     #println(block.rope, " isa? ", block.rope isa MultiDimRoPE, ", is actually: ", typeof(block.rope))
-    @assert block.rope isa Onion.MultiDimRoPE "check 2"
+    @assert block.rope isa MultiDimRoPE "check 2"
     h = x + block.attention(block.attention_norm(x), block.rope, start_pos, mask, x_pos) # block.rope instead
     out = h + block.feed_forward(block.ffn_norm(h))
     return out
 end
 
 Flux.@layer TransformerBlock
+
 
 
 

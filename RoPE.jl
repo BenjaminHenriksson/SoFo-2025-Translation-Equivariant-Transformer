@@ -1,5 +1,3 @@
-using LinearAlgebra # For testing / dev only
-
 """
     RoPE(dim::Int, max_length; theta::T=10000f0)
     
@@ -75,32 +73,21 @@ end
 
 # Permutation from Su et al. 2023 (RoFormer), eq. 34 sine vector
 
-# function pairflip(X::AbstractArray)
-#     @assert iseven(size(X, 1)) # d_embedding is even
-#     #println("X: ", X, ", size(X): ", size(X))
-#     X_odd = X[1:2:end, :]
-#     X_even = X[2:2:end, :]
-#     Y_even = reshape(X_odd, 1, size(X_odd)...)
-#     Y_odd = reshape(-X_even, 1, size(X_even)...)
-#     Y = reshape(cat(Y_odd, Y_even, dims=1), size(X)...)
-#     return Y
-# end
-
 function pairflip(X::AbstractArray)
-    d = size(X, 1)
-    @assert iseven(d) "First dimension must be even; got $d."
-
-    # 1. Flatten trailing dims into one axis
-    X2 = reshape(X, d, :)               # d × N view
-
-    # 2. Allocate output and flip pairs
-    Y2 = similar(X2)                    # same eltype and size as X2
-    Y2[1:2:end, :] .= -X2[2:2:end, :]   # odd rows become negated evens
-    Y2[2:2:end, :] .=  X2[1:2:end, :]   # even rows become previous odds
-
-    # 3. Restore original shape
-    return reshape(Y2, size(X))
+    @assert iseven(size(X, 1)) # d_embedding is even
+    #println("X: ", X, ", size(X): ", size(X))
+    org_dims = size(X)
+    X = reshape(X, size(X, 1), :)
+    X_odd = X[1:2:end, :]
+    X_even = X[2:2:end, :]
+    Y_even = reshape(X_odd, 1, size(X_odd)...)
+    Y_odd = reshape(-X_even, 1, size(X_even)...)
+    Y = reshape(cat(Y_odd, Y_even, dims=1), org_dims...)
+    return Y
 end
+# BoundsError: attempt to access 8×30×8×10 Array{Float32, 4} at index [1:2:7, 1:30]
+
+# DimensionMismatch: arrays could not be broadcast to a common size: a has axes Base.OneTo(8) and b has axes Base.OneTo(10)
 
 println("dev env")
 
@@ -116,7 +103,7 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     @assert iseven(dim) "Dimensionality (dim) must be even for RoPE"
     
     # Thetas is learnt in transposed form
-    return MultiDimRoPE( rand(Float32, dim ÷ 2, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
+    return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
 end
 
 function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)

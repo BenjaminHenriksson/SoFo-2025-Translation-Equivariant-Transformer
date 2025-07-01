@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.11.3"
 manifest_format = "2.0"
 project_hash = "7ba1930fb028159bb4fccfb9b826107a3c763b9b"
 
@@ -1206,7 +1206,9 @@ version = "0.2.10"
 
 [[deps.Onion]]
 deps = ["BatchedTransformations", "Flux", "LinearAlgebra", "NNlib"]
-path = "Onion.jl"
+git-tree-sha1 = "64cf3ce033779ef68a632397049dff2427d659a3"
+repo-rev = "main"
+repo-url = "https://github.com/MurrellGroup/Onion.jl"
 uuid = "fdebf6c2-71da-43a1-b539-c3bc3e09c5c6"
 version = "0.1.1"
 
@@ -1218,7 +1220,7 @@ version = "0.3.27+1"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.1+2"
 
 [[deps.OpenMPI_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML", "Zlib_jll"]
@@ -1377,9 +1379,9 @@ version = "1.11.0"
 
 [[deps.ProgressLogging]]
 deps = ["Logging", "SHA", "UUIDs"]
-git-tree-sha1 = "80d919dee55b9c50e8d9e2da5eeafff3fe58b539"
+git-tree-sha1 = "d95ed0324b0799843ac6f7a6a85e65fe4e5173f0"
 uuid = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
-version = "0.1.4"
+version = "0.1.5"
 
 [[deps.ProteinChains]]
 deps = ["AssigningSecondaryStructure", "Backboner", "BioStructures", "BitIntegers", "Compat", "DynamicStructs", "Graphs", "HDF5", "InlineStrings", "JLD2", "JSON", "LinearAlgebra", "PeriodicTable", "Reexport", "StaticArrays", "Statistics"]
