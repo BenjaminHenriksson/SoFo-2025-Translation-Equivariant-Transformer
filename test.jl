@@ -1,4 +1,6 @@
 using Pkg; Pkg.activate(".")
+
+# Make sure the Dev version of Onion is loaded (should print "dev env" when loading)
 using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
 
 dat = DLProteinFormats.load(PDBSimpleFlat500);
@@ -47,5 +49,21 @@ model = Toy1(64, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
-test = random_batch(dat, L, 1, train_inds)
-model(test.locs)
+for epoch in 1:20 # 1:100
+    tot_loss = 0f0
+    for i in 1:1_000 # 1:10_000
+        batch = random_batch(dat, L, 10, train_inds);
+        l, grad = Flux.withgradient(model) do m
+            aalogits = m(batch.locs)
+            Flux.logitcrossentropy(aalogits, batch.AAs)
+        end
+        Flux.update!(opt_state, model, grad[1])
+        tot_loss += l
+        if mod(i, 50) == 0
+            println(epoch, " ", i, " ", tot_loss/50)
+            push!(losses, tot_loss/50)
+            tot_loss = 0f0
+        end
+        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_MultiDimRoPE.pdf")
+    end
+end
