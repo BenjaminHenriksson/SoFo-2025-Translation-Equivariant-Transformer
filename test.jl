@@ -27,7 +27,7 @@ Flux.@layer Toy1
 function Toy1(dim, depth)
     layers = (;
         loc_encoder = Dense(3 => dim, bias=false),
-        transformers = [Onion.TransformerBlock(dim, 8, Onion.MultiDimRoPE) for _ in 1:depth],
+        transformers = [Onion.TransformerBlock(dim, 8, MultiDimRoPE(dim, 3)) for _ in 1:depth],
         AA_decoder = Dense(dim => 20, bias=false),
     )
     return Toy1(layers)
