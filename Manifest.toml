@@ -2,7 +2,7 @@
 
 julia_version = "1.11.3"
 manifest_format = "2.0"
-project_hash = "7ba1930fb028159bb4fccfb9b826107a3c763b9b"
+project_hash = "8e26a869dd2a5e623c6cd54220f9b08c7dc2af8a"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1722,12 +1722,6 @@ version = "0.4.84"
     LazyArrays = "5078a376-72f3-5289-bfd5-ec5146d43c02"
     OnlineStatsBase = "925886fa-5bf2-5e8e-b522-a9147a512338"
     Referenceables = "42d2dcc6-99eb-4e98-b66c-637b7d73030e"
-
-[[deps.TranslationalEquivariance]]
-deps = ["DLProteinFormats"]
-path = "TranslationalEquivariance"
-uuid = "bbb16414-76bb-4a19-8cae-5f80ba3529af"
-version = "0.1.0"
 
 [[deps.URIs]]
 git-tree-sha1 = "24c1c558881564e2217dcf7840a8b2e10caeb0f9"
