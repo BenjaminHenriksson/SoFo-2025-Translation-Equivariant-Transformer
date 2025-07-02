@@ -49,49 +49,36 @@ function (rope::RoPE)(x)
     )
 end
 
-
 # * Multidimensional RoPE from Schneck et al. 2025:
 #   "Learning the RoPEs: Better 2D and 3D Position Encodings with STRING".
 #   Link to paper: https://arxiv.org/abs/2502.02562
-#   For now without the orthogonal matrix P in eq. 9.
 #
 # * This is equivalent to the original RoPE (Su et al. 2023) in eq. 34, but
 #   with each token's position vector m ∈ ℜ^n and learnable θ ∈ ℜ^(n × d).
 
-
-# Argument 'i' is the index of the token *as fed into the MultiDimRoPE* 
-# e.g.  tokens postioned at (1,2,3), (4,5,6), (7,8,9) come it to the model,
-#       i = 1 ⇒ token positioned at (1,2,3)
-#       i = 2 ⇒ token positioned at (4,5,6)
-#       etc.
-# That means the order in which tokens are fed into the model is important! 
-# (If new points are generated: append, don't push, new points)
-
-# x = token embedding
-# Can be optimized for static positions using matmuls
-#function MultidimensionalRoPE(dim::Int, x::AbstractArray, pos::AbstractArray, positions::AbstractMatrix, thetas::ThetaMatrix)
-
 # Permutation from Su et al. 2023 (RoFormer), eq. 34 sine vector
-
+# Currently causes errors:
+# BoundsError: attempt to access 8×30×8×10 Array{Float32, 4} at index [1:2:7, 1:30] (when feeding batched position vectors)
+# DimensionMismatch: arrays could not be broadcast to a common size: a has axes Base.OneTo(8) and b has axes Base.OneTo(10) (when naïvely broadcasting)
 function pairflip(X::AbstractArray)
-    @assert iseven(size(X, 1)) # d_embedding is even
-    #println("X: ", X, ", size(X): ", size(X))
-    org_dims = size(X)
+    @assert iseven(size(X, 1)) # dimensionality of embedding vector must be even
+    
+	# Magic code to compute (x1, x2, x3, x4, ...) -> (-x2, x1, -x4, x3, ...)
+	org_dims = size(X)
     X = reshape(X, size(X, 1), :)
     X_odd = X[1:2:end, :]
     X_even = X[2:2:end, :]
     Y_even = reshape(X_odd, 1, size(X_odd)...)
     Y_odd = reshape(-X_even, 1, size(X_even)...)
     Y = reshape(cat(Y_odd, Y_even, dims=1), org_dims...)
-    return Y
+    
+	return Y
 end
-# BoundsError: attempt to access 8×30×8×10 Array{Float32, 4} at index [1:2:7, 1:30]
 
-# DimensionMismatch: arrays could not be broadcast to a common size: a has axes Base.OneTo(8) and b has axes Base.OneTo(10)
-
+# Ensure current file is loaded when using / developing Onion.jl
 println("dev env")
 
-# Initialize ThetaMatrix struct
+# Struct with learnable matrices for multidimensional RoPE
 struct MultiDimRoPE{A}
     Thetas::A
     FreeMatrix::A
@@ -99,10 +86,11 @@ end
 
 Flux.@layer MultiDimRoPE
 
+# dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
 function MultiDimRoPE(dim::Int, d_coords::Int)
-    @assert iseven(dim) "Dimensionality (dim) must be even for RoPE"
+    @assert iseven(dim) "Dimensionality (dim) must be even for RoPE, dim=$dim was given."
     
-    # Thetas is learnt in transposed form
+    # Thetas is learnt in transposed form as compared the original STRING paper
     return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
 end
 
@@ -110,7 +98,7 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     R = batched_mul(rope.Thetas, positions)
     R_cis = cis.(R)
 
-    # Becomes different
+	# Needs fixing
     x_perm = pairflip(x)
 
     P = exp((rope.FreeMatrix - rope.FreeMatrix') .* 0.5)
