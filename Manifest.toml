@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.3"
+julia_version = "1.11.5"
 manifest_format = "2.0"
 project_hash = "8e26a869dd2a5e623c6cd54220f9b08c7dc2af8a"
 
@@ -1000,9 +1000,9 @@ version = "1.0.0"
 
 [[deps.MLDataDevices]]
 deps = ["Adapt", "Compat", "Functors", "Preferences", "Random"]
-git-tree-sha1 = "a47f08b67298dee5778cf279a9a735ca2d11a890"
+git-tree-sha1 = "1b351cccb58e366504a5135d10e019234a27d792"
 uuid = "7e8f7934-dd98-4c1a-8fe8-92b47a384d40"
-version = "1.10.0"
+version = "1.10.1"
 
     [deps.MLDataDevices.extensions]
     MLDataDevicesAMDGPUExt = "AMDGPU"
@@ -1206,9 +1206,7 @@ version = "0.2.10"
 
 [[deps.Onion]]
 deps = ["BatchedTransformations", "Flux", "LinearAlgebra", "NNlib"]
-git-tree-sha1 = "64cf3ce033779ef68a632397049dff2427d659a3"
-repo-rev = "main"
-repo-url = "https://github.com/MurrellGroup/Onion.jl"
+path = "Onion.jl"
 uuid = "fdebf6c2-71da-43a1-b539-c3bc3e09c5c6"
 version = "0.1.1"
 
@@ -1220,7 +1218,7 @@ version = "0.3.27+1"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+2"
+version = "0.8.5+0"
 
 [[deps.OpenMPI_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML", "Zlib_jll"]

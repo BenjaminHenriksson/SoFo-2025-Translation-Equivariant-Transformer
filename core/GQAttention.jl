@@ -84,15 +84,12 @@ end
 repeat_kv(x::AbstractArray, n_rep::Int) = isone(n_rep) ? x : repeat(x, 1, n_rep, 1, 1)
 
 # Backward compatibility method for self-attention with existing interface
-#rope=nothing
-function (attn::Attention)(x::AbstractArray{T}, rope, start_pos::Integer=1, mask=0, x_pos::AbstractArray{T}=nothing) where T
-    @assert rope isa MultiDimRoPE "check 1"
-    #println("very cool ", rope)
+function (attn::Attention)(x::AbstractArray{T}, start_pos::Integer=1, mask=0, rope=nothing, x_pos::AbstractArray{T}=nothing) where T
     return attn(x, x, rope, start_pos, mask, x_pos)
 end
 
 #rope=nothing
-function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, rope, start_pos::Integer=1, mask=0, x_pos::AbstractArray{T}=nothing) where T    
+function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, start_pos::Integer=1, mask=0, rope=nothing, x_pos::AbstractArray{T}=nothing) where T
     _, q_seqlen, q_batch = size(x_query)
     _, k_seqlen, k_batch = size(x_key)
     
@@ -108,16 +105,13 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, r
     xk = permutedims(xk, (1,3,2,4)) # (head_dim, seqlen, n_heads, batch)
     xv = permutedims(xv, (1,3,2,4))
     
-    # FIX IS REQUIRED HERE FOR BATCHES OF POSITIONS
-
-    # if rope isa RoPE
-    #     xq, xk = rope(xq), rope(xk) 
-    # elseif rope isa MultiDimRoPE
-    @assert rope isa MultiDimRoPE "rope not loaded"
-    println("using MultiDimRoPE")
-    xq, xk = rope(xq, x_pos), rope(xk, x_pos) 
-    # end 
-    # embedding, seq_len, batch
+    if rope isa RoPE
+        xq, xk = rope(xq), rope(xk) 
+    elseif rope isa MultiDimRoPE
+    	println("using MultiDimRoPE.")
+    	@assert x_pos isa AbstractArray "Positions vectors for each embedding must be loaded to use MultiDimRoPE."
+		xq, xk = rope(xq, x_pos), rope(xk, x_pos) 
+    end 
 
     # Update if cache is configured with seq_length > 0
     #xk, xv = update!(attn.cache, start_pos, xk, xv)
@@ -140,7 +134,7 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, r
     return proj
 end
 
-struct TransformerBlock{A,F,AN,FN, R}
+struct TransformerBlock{A,F,AN,FN,R}
     attention::A
     feed_forward::F
     attention_norm::AN
@@ -174,23 +168,22 @@ h = t(h, 1, rope[1:seqlen], mask)
 ```
 """
 function TransformerBlock(
-    dim::Int, n_heads::Int, rope, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
-    norm_eps=1f-5, qkv_bias=false, # Rope function argument
+    dim::Int, n_heads::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
+    norm_eps=1f-5, qkv_bias=false, rope=nothing# Rope function argument
 )
+	@assert rope isa MultiDimRoPE "MultiDimRoPE not loaded." 
     TransformerBlock(
         Attention(dim, n_heads, n_kv_heads; qkv_bias),
         StarGLU(dim, ff_hidden_dim),
         RMSNorm(dim, eps=norm_eps),
         RMSNorm(dim, eps=norm_eps),
-        rope # MUST BE INITIALIZED IN FUNCTION CALL
+		rope, # Must be initialized in function call
     ) 
 end
 
-# rope argument deprecated due to block.rope
+# rope argument made redundant due to block.rope
 function (block::TransformerBlock)(x, start_pos, rope, x_pos = nothing, mask = 0)
-    #println(block.rope, " isa? ", block.rope isa MultiDimRoPE, ", is actually: ", typeof(block.rope))
-    @assert block.rope isa MultiDimRoPE "check 2"
-    h = x + block.attention(block.attention_norm(x), block.rope, start_pos, mask, x_pos) # block.rope instead
+    h = x + block.attention(block.attention_norm(x), block.rope, start_pos, mask, x_pos)
     out = h + block.feed_forward(block.ffn_norm(h))
     return out
 end
