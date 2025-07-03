@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "8e26a869dd2a5e623c6cd54220f9b08c7dc2af8a"
+project_hash = "f524ea4c2d7fea9fbdc9d28f2a7df3ab19bc8e12"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1431,6 +1431,18 @@ version = "1.11.0"
 deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 version = "1.11.0"
+
+[[deps.RandomFeatureMaps]]
+deps = ["BatchedTransformations", "Flux"]
+git-tree-sha1 = "e5c1418a2c4994c05a9800ad281fd52867bed68d"
+uuid = "780baa95-dd42-481b-93db-80fe3d88832c"
+version = "0.2.2"
+
+    [deps.RandomFeatureMaps.extensions]
+    GraphNeuralNetworksExt = "GraphNeuralNetworks"
+
+    [deps.RandomFeatureMaps.weakdeps]
+    GraphNeuralNetworks = "cffab07f-9bc2-4db1-8861-388f63bf7694"
 
 [[deps.RealDot]]
 deps = ["LinearAlgebra"]
