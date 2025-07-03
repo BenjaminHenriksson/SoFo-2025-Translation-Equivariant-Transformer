@@ -126,6 +126,7 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     
     #print(typeof(xq_for_attn), typeof(xk_for_attn), typeof(xv_for_attn))
     # Type issue for unknown reasons, converts from float64 to float32 
+    # probably from MultiDimRoPE
     xq_for_attn = convert(Array{Float32, 3}, xq_for_attn)
     xk_for_attn = convert(Array{Float32, 3}, xk_for_attn)
     
