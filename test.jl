@@ -29,7 +29,7 @@ Flux.@layer Toy1
 function Toy1(dim, depth)
     layers = (;
         loc_encoder = Dense(3 => dim, bias=false),
-        transformers = [Onion.TransformerBlock(dim, 8, rope=Onion.MultiDimRoPE(dim, 3)) for _ in 1:depth],
+        transformers = [Onion.TransformerBlock(dim, 8, rope=Onion.MultiDimRoPE( Int(dim / 8), 3)) for _ in 1:depth],
         AA_decoder = Dense(dim => 20, bias=false),
     )
     return Toy1(layers)
@@ -48,10 +48,11 @@ model = Toy1(64, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
+#=
 for epoch in 1:20 # 1:100
     tot_loss = 0f0
     for i in 1:1_000 # 1:10_000
-        batch = random_batch(dat, L, 10, train_inds);
+        batch = random_batch(dat, L, 10, train_inds)
         l, grad = Flux.withgradient(model) do m
             aalogits = m(batch.locs)
             Flux.logitcrossentropy(aalogits, batch.AAs)
@@ -66,3 +67,6 @@ for epoch in 1:20 # 1:100
         (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_MultiDimRoPE.pdf")
     end
 end
+
+# 42 minute runtime
+=#

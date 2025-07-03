@@ -93,8 +93,8 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     # Thetas is learnt in transposed form
     
     # BAD HARD CODED SOLUTION FOR TESTING:
-    # return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
-    return MultiDimRoPE( rand(Float32, 8, d_coords), rand(Float32, 8, 8) )
+    return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim, dim) )
+    # return MultiDimRoPE( rand(Float32, 8, d_coords), rand(Float32, 8, 8) )
 end
 
 # embedding tensor shapes: (head_dim, seqlen, n_heads, batch)

@@ -107,7 +107,8 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     if rope isa RoPE
         xq, xk = rope(xq), rope(xk) 
     elseif rope isa MultiDimRoPE
-        println("using MultiDimRoPE.")
+        # spams during training
+        #println("using MultiDimRoPE.")
         @assert x_pos isa AbstractArray "Positions vectors for each embedding must be loaded to use MultiDimRoPE."
         xq, xk = rope(xq, x_pos), rope(xk, x_pos) 
     end 
@@ -123,6 +124,12 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     xk_for_attn = reshape(xk, attn.head_dim, :, attn.n_heads * k_batch)
     xv_for_attn = reshape(xv, attn.head_dim, :, attn.n_heads * k_batch)
     
+    #print(typeof(xq_for_attn), typeof(xk_for_attn), typeof(xv_for_attn))
+    # Type issue for unknown reasons, converts from float64 to float32 
+    xq_for_attn = convert(Array{Float32, 3}, xq_for_attn)
+    xk_for_attn = convert(Array{Float32, 3}, xk_for_attn)
+    
+    # Problem with this function call
     output = sdpa(xq_for_attn, xk_for_attn, xv_for_attn, attn.head_dim, mask)
     
     e_output = reshape(output, (attn.head_dim, q_seqlen, attn.n_heads, q_batch))
