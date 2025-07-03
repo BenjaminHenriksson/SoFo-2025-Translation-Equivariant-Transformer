@@ -1,8 +1,10 @@
 using Pkg; Pkg.activate(".")
 
 # Make sure the Dev version of Onion is loaded (should print "dev env" when loading)
-using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
-using Test
+using Flux, Onion, Test
+
+# These tests should actually be EQUIVARIANT, not INVARIANT!
+# Tests need to be rewritten to consider RoPE between tokens, not independently of postions!
 
 # Translation invariance tests for MultiDimRoPE
 @testset "MultiDimRoPE Translation Invariance" begin
@@ -41,9 +43,8 @@ using Test
 
     @test isapprox(q1, q2; atol=1e-5, rtol=1e-5) # fails
     @test isapprox(k1, k2; atol=1e-5, rtol=1e-5) # fails
-    @test isapprox(v1, v2; atol=1e-5, rtol=1e-5) #
+    @test isapprox(v1, v2; atol=1e-5, rtol=1e-5) # passes
 end
-
 
 # Diagnostics for where invariance fails
 @testset "MultiDimRoPE Invariance Breakdown" begin
@@ -62,6 +63,7 @@ end
         batchdims = size(x)[2:end]
         x_flat = reshape(x, :, prod(batchdims))
         pos_dims = size(pos)
+
         if ndims(pos) == 3
             pos_r = reshape(pos, pos_dims[1], pos_dims[2], 1, pos_dims[3])
         elseif ndims(pos) == 4
@@ -74,6 +76,7 @@ end
         else
             @assert size(pos_r, 3) == batchdims[2]
         end
+        
         pos_flat = reshape(pos_r, size(pos_r, 1), prod(batchdims))
         R = Onion.batched_mul(rope.Thetas, pos_flat)
         R_cis = cis.(R)
@@ -83,14 +86,15 @@ end
         P_adj = repeat(P_adj, 1, 1, prod(batchdims))
         x_rot = (x_flat .* real.(R_cis)) .+ (x_perm .* imag.(R_cis))
         out = Onion.batched_vec(P_adj, x_rot)
+        
         return (; R, x_perm, x_rot, out)
     end
 
     base = rope_parts(rope, x, pos)
     shifted = rope_parts(rope, x, pos_shift)
 
-    @test isapprox(base.R, shifted.R; atol=1e-5, rtol=1e-5)
-    @test isapprox(base.x_perm, shifted.x_perm; atol=1e-5, rtol=1e-5)
-    @test isapprox(base.x_rot, shifted.x_rot; atol=1e-5, rtol=1e-5)
-    @test isapprox(base.out, shifted.out; atol=1e-5, rtol=1e-5)
+    @test isapprox(base.R, shifted.R; atol=1e-5, rtol=1e-5) # fails
+    @test isapprox(base.x_perm, shifted.x_perm; atol=1e-5, rtol=1e-5) # passes
+    @test isapprox(base.x_rot, shifted.x_rot; atol=1e-5, rtol=1e-5) # fails
+    @test isapprox(base.out, shifted.out; atol=1e-5, rtol=1e-5) # fails
 end
