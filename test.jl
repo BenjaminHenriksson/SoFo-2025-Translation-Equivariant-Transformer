@@ -2,6 +2,7 @@ using Pkg; Pkg.activate(".")
 
 # Make sure the Dev version of Onion is loaded (should print "dev env" when loading)
 using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
+using Test
 
 dat = DLProteinFormats.load(PDBSimpleFlat500);
 
@@ -70,3 +71,43 @@ end
 
 # 42 minute runtime
 =#
+
+# Translation invariance tests for MultiDimRoPE
+@testset "MultiDimRoPE Translation Invariance" begin
+    dim = 32
+    n_heads = 4
+    seqlen = 6
+    batch_size = 2
+
+    attn = Onion.Attention(dim, n_heads; qkv_bias=false)
+    rope = Onion.MultiDimRoPE(Int(dim / n_heads), 3)
+
+    x = rand(Float32, dim, seqlen, batch_size)
+    pos = rand(Float32, 3, seqlen, batch_size)
+
+    function qkv(attn, x, pos)
+        q = attn.wq(x)
+        k = attn.wk(x)
+        v = attn.wv(x)
+        q = reshape(q, (attn.head_dim, attn.n_heads, seqlen, batch_size))
+        k = reshape(k, (attn.head_dim, attn.n_kv_heads, seqlen, batch_size))
+        v = reshape(v, (attn.head_dim, attn.n_kv_heads, seqlen, batch_size))
+        q = permutedims(q, (1,3,2,4))
+        k = permutedims(k, (1,3,2,4))
+        v = permutedims(v, (1,3,2,4))
+        q = rope(q, pos)
+        k = rope(k, pos)
+        return q, k, v
+    end
+
+    q1, k1, v1 = qkv(attn, x, pos)
+
+    shift = rand(Float32, 3, 1, 1)
+    pos_shift = pos .+ shift
+
+    q2, k2, v2 = qkv(attn, x, pos_shift)
+
+    @test isapprox(q1, q2; atol=1e-5, rtol=1e-5)
+    @test isapprox(k1, k2; atol=1e-5, rtol=1e-5)
+    @test isapprox(v1, v2; atol=1e-5, rtol=1e-5)
+end
