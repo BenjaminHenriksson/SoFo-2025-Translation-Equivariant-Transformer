@@ -91,16 +91,19 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     @assert iseven(dim) "Dimensionality (dim) must be even for RoPE, dim=$dim was given."
     
     # Thetas is learnt in transposed form
-    return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
+    
+    # BAD HARD CODED SOLUTION FOR TESTING:
+    # return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
+    return MultiDimRoPE( rand(Float32, 8, d_coords), rand(Float32, 8, 8) )
 end
 
 # embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
 function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     batchdims = size(x)[2:end] # (seqlen, n_heads, batch)
-    @info "batchdims = $batchdims"
+    
+    # size(x) = (8, 2400)
     x = reshape(x, :, prod(batchdims))
-    @info "positions shape = ", size(positions)
-
+    
     # Broadcast positions across the head dimension if needed
     pos_dims = size(positions)
     if ndims(positions) == 3
@@ -124,16 +127,21 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     positions = reshape(positions, size(positions,1), prod(batchdims))
  
     R = batched_mul(rope.Thetas, positions)
+
+    # size(R_cis) = (8, 2400)
     R_cis = cis.(R)
  
+    # size(x_perm) = (8, 2400)
     x_perm = pairflip(x)
  
     # Other options for generating P: Cayley STRING, Circulant STRING
     P = exp((rope.FreeMatrix - rope.FreeMatrix') .* 0.5)
  
     P_adjoint = reshape(P', size(P)..., 1)
-    P_adjoint = repeat(P_adjoint, 1, 1, prod(batchdims))
- 
+    P_adjoint = repeat(P_adjoint, 1, 1, prod(batchdims)) 
+    # size(P_adjoint) = (32, 32, 2400)
+    
+    # size(((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis)))) = (8, 2400)
     x = batched_vec(P_adjoint, ((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis))))
     return reshape(x, size(x, 1), batchdims...)
 end
