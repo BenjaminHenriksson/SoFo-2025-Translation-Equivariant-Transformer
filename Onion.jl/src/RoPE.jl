@@ -94,11 +94,15 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim ÷ 2, dim ÷ 2) )
 end
 
+# embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
 function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     batchdims = size(x)[2:end]
     @info "batchdims = $batchdims"
+    # shape = (8, 30, 8, 10)[2:end] = (30, 8, 10)
     x = reshape(x, :, prod(batchdims))
     @info "positions shape = ", size(positions)
+    # shape = (3, 30, 10)
+    # positions need to be broadcasted over heads
     positions = reshape(positions, :, prod(batchdims))
  
     R = batched_mul(rope.Thetas, positions)
