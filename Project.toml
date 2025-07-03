@@ -1,4 +1,7 @@
 [deps]
 DLProteinFormats = "df93d313-1126-4eb6-ac29-b325d5898587"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 Onion = "fdebf6c2-71da-43a1-b539-c3bc3e09c5c6"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+RandomFeatureMaps = "780baa95-dd42-481b-93db-80fe3d88832c"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
