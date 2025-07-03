@@ -96,14 +96,32 @@ end
 
 # embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
 function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
-    batchdims = size(x)[2:end]
+    batchdims = size(x)[2:end] # (seqlen, n_heads, batch)
     @info "batchdims = $batchdims"
-    # shape = (8, 30, 8, 10)[2:end] = (30, 8, 10)
     x = reshape(x, :, prod(batchdims))
     @info "positions shape = ", size(positions)
-    # shape = (3, 30, 10)
-    # positions need to be broadcasted over heads
-    positions = reshape(positions, :, prod(batchdims))
+
+    # Broadcast positions across the head dimension if needed
+    pos_dims = size(positions)
+    if ndims(positions) == 3
+        # (d_coords, seqlen, batch) -> (d_coords, seqlen, 1, batch)
+        positions = reshape(positions, pos_dims[1], pos_dims[2], 1, pos_dims[3])
+    elseif ndims(positions) == 4
+        # keep as is
+    else
+        error("positions must have 3 or 4 dimensions")
+    end
+
+    @assert pos_dims[2] == batchdims[1] "position sequence length must match x"
+    @assert pos_dims[end] == batchdims[end] "position batch size must match x"
+
+    if size(positions,3) == 1 && batchdims[2] > 1
+        positions = repeat(positions, 1, 1, batchdims[2], 1)
+    else
+        @assert size(positions,3) == batchdims[2] "positions head dimension must match x or be 1"
+    end
+
+    positions = reshape(positions, size(positions,1), prod(batchdims))
  
     R = batched_mul(rope.Thetas, positions)
     R_cis = cis.(R)
