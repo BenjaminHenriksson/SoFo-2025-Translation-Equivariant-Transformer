@@ -76,7 +76,7 @@ function pairflip(X::AbstractArray)
 end
 
 # Ensure current file is loaded when using / developing Onion.jl
-println("Using local RoPE.jl (dev env)")
+@info "Using local RoPE.jl (dev env)"
 
 # Struct with learnable matrices for multidimensional RoPE
 struct MultiDimRoPE{A}
@@ -92,9 +92,7 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     
     # Thetas is learnt in transposed form
     
-    # BAD HARD CODED SOLUTION FOR TESTING:
     return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim, dim) )
-    # return MultiDimRoPE( rand(Float32, 8, d_coords), rand(Float32, 8, 8) )
 end
 
 # embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
@@ -104,7 +102,7 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     # size(x) = (8, 2400)
     x = reshape(x, :, prod(batchdims))
     
-    # Broadcast positions across the head dimension if needed
+    # --------- Broadcast positions across the head dimension if needed ---------
     pos_dims = size(positions)
     if ndims(positions) == 3
         # (d_coords, seqlen, batch) -> (d_coords, seqlen, 1, batch)
@@ -123,6 +121,7 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     else
         @assert size(positions,3) == batchdims[2] "positions head dimension must match x or be 1"
     end
+    # --------------------------------------------------------------------------
 
     positions = reshape(positions, size(positions,1), prod(batchdims))
  
@@ -141,7 +140,12 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     P_adjoint = repeat(P_adjoint, 1, 1, prod(batchdims)) 
     # size(P_adjoint) = (32, 32, 2400)
     
-    # size(((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis)))) = (8, 2400)
+    # size((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis))) = (8, 2400)
     x = batched_vec(P_adjoint, ((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis))))
+    
+    # FOR TESTING ONLY
+    #x = batched_mul(P, x)
+    #x = ((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis)))
+    
     return reshape(x, size(x, 1), batchdims...)
 end

@@ -107,11 +107,15 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     if rope isa RoPE
         xq, xk = rope(xq), rope(xk) 
     elseif rope isa MultiDimRoPE
-        # spams during training
-        #println("using MultiDimRoPE.")
         @assert x_pos isa AbstractArray "Positions vectors for each embedding must be loaded to use MultiDimRoPE."
+        
+        shift = randn(Float32, 3)
+        xq_s, xk_s = rope(xq, x_pos .+ shift), rope(xk, x_pos .+ shift) 
+
         xq, xk = rope(xq, x_pos), rope(xk, x_pos) 
-    end 
+        
+        @assert !isapprox(xq, xq_s) "MultiDimRoPE didn't detect initial position shifted"
+    end  
 
     # Update if cache is configured with seq_length > 0
     #xk, xv = update!(attn.cache, start_pos, xk, xv)
@@ -120,18 +124,28 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     xk = repeat_kv(xk, attn.n_heads ÷ attn.n_kv_heads)
     xv = repeat_kv(xv, attn.n_heads ÷ attn.n_kv_heads)
     
+    xk_s = repeat_kv(xk_s, attn.n_heads ÷ attn.n_kv_heads)
+    
     xq_for_attn = reshape(xq, attn.head_dim, :, attn.n_heads * q_batch)
     xk_for_attn = reshape(xk, attn.head_dim, :, attn.n_heads * k_batch)
     xv_for_attn = reshape(xv, attn.head_dim, :, attn.n_heads * k_batch)
     
-    #print(typeof(xq_for_attn), typeof(xk_for_attn), typeof(xv_for_attn))
+    xqs_for_attn = reshape(xq_s, attn.head_dim, :, attn.n_heads * q_batch)
+    xks_for_attn = reshape(xk_s, attn.head_dim, :, attn.n_heads * q_batch)
+    
     # Type issue for unknown reasons, converts from float64 to float32 
     # probably from MultiDimRoPE
     xq_for_attn = convert(Array{Float32, 3}, xq_for_attn)
     xk_for_attn = convert(Array{Float32, 3}, xk_for_attn)
     
-    # Problem with this function call
+    xqs_for_attn = convert(Array{Float32, 3}, xqs_for_attn)
+    xks_for_attn = convert(Array{Float32, 3}, xks_for_attn)
+    
     output = sdpa(xq_for_attn, xk_for_attn, xv_for_attn, attn.head_dim, mask)
+    output_shifted = sdpa(xqs_for_attn, xks_for_attn, xv_for_attn, attn.head_dim, mask)
+    
+    @assert isapprox(output, output_shifted; atol=1e-5, rtol=1e-5) "Output and shifted output not equal, mean differnce = ", println(sum(abs, output-output_shifted) / length(output))
+    println("Translationally invariant (good)")
     
     e_output = reshape(output, (attn.head_dim, q_seqlen, attn.n_heads, q_batch))
     p_output = permutedims(e_output, (1,3,2,4)) 
@@ -178,7 +192,9 @@ function TransformerBlock(
     dim::Int, n_heads::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
     norm_eps=1f-5, qkv_bias=false, rope=nothing# Rope function argument
 )
+    #if !(rope isa nothing)
     @assert rope isa MultiDimRoPE "MultiDimRoPE not loaded." 
+    #end
     TransformerBlock(
         Attention(dim, n_heads, n_kv_heads; qkv_bias),
         StarGLU(dim, ff_hidden_dim),
