@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "46857bfb27808afdc3164f0056e41096d833f482"
+project_hash = "f23d181d196d36fa017a2c4f8e9afde22aae91d6"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1205,7 +1205,7 @@ uuid = "0b1bfda6-eb8a-41d2-88d8-f5af5cad476f"
 version = "0.2.10"
 
 [[deps.Onion]]
-deps = ["BatchedTransformations", "Flux", "LinearAlgebra", "NNlib"]
+deps = ["BatchedTransformations", "Flux", "LinearAlgebra", "NNlib", "SparseArrays"]
 path = "Onion.jl"
 uuid = "fdebf6c2-71da-43a1-b539-c3bc3e09c5c6"
 version = "0.1.1"

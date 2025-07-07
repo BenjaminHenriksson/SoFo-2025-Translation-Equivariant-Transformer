@@ -13,6 +13,7 @@ include("UNet.jl")
 include("FlexibleUNet.jl")
 include("FSQ.jl")
 include("IPAHelpers.jl")
+include("STRING.jl")
 
 export
     #shared:
