@@ -23,13 +23,14 @@ function STRING(dim::Int, d_coords::Int)
     )
 end
 
+# eq. 2/3 STRING paper
 function ContinuousRoPE(x::Number, params::STRING)
     rot(x, θ) = reshape([cos(x*θ), -sin(x*θ), sin(x*θ),  cos(x*θ)], 2, 2)
 
     mats = [rot(x, params.thetas[i]) for i in 1:params.dim ÷ 2]
 
-    BD_sparse = blockdiag(sparse.(mats)...)   # block-diagonal sparse matrix
-    BD_dense  = Matrix(BD_sparse)    # densify if you need a full Array
+    BD_sparse = blockdiag(sparse.(mats)...) # block-diagonal sparse matrix
+    BD_dense  = Matrix(BD_sparse) # densify matrix again
 
     return BD_dense
 end
