@@ -1,4 +1,4 @@
-using BlockDiagonals, LinearAlgebra
+using LinearAlgebra
 
 
 """
