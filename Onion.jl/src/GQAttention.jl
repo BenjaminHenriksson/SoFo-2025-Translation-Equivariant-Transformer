@@ -144,7 +144,7 @@ function (attn::Attention)(x_query::AbstractArray{T}, x_key::AbstractArray{T}, s
     output = sdpa(xq_for_attn, xk_for_attn, xv_for_attn, attn.head_dim, mask)
     output_shifted = sdpa(xqs_for_attn, xks_for_attn, xv_for_attn, attn.head_dim, mask)
     
-    @assert isapprox(output, output_shifted; atol=1e-5, rtol=1e-5) "Output and shifted output not equal, mean differnce = ", println(sum(abs, output-output_shifted) / length(output))
+    @assert isapprox(output, output_shifted; atol=1e-5, rtol=1e-5) "Output and shifted output not equal, mean differnce = ", sum(abs, output-output_shifted) / length(output)
     println("Translationally invariant (good)")
     
     e_output = reshape(output, (attn.head_dim, q_seqlen, attn.n_heads, q_batch))

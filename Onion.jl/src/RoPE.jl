@@ -1,3 +1,6 @@
+using BlockDiagonals, LinearAlgebra
+
+
 """
     RoPE(dim::Int, max_length; theta::T=10000f0)
     
@@ -57,9 +60,6 @@ end
 #   with each token's position vector m ∈ ℜ^n and learnable θ ∈ ℜ^(n × d).
 
 # Permutation from Su et al. 2023 (RoFormer), eq. 34 sine vector
-# Currently causes errors:
-# BoundsError: attempt to access 8×30×8×10 Array{Float32, 4} at index [1:2:7, 1:30] (when feeding batched position vectors)
-# DimensionMismatch: arrays could not be broadcast to a common size: a has axes Base.OneTo(8) and b has axes Base.OneTo(10) (when naïvely broadcasting)
 function pairflip(X::AbstractArray)
     @assert iseven(size(X, 1)) # dimensionality of embedding vector must be even
     
@@ -92,7 +92,10 @@ function MultiDimRoPE(dim::Int, d_coords::Int)
     
     # Thetas is learnt in transposed form
     
-    return MultiDimRoPE( rand(Float32, dim, d_coords), rand(Float32, dim, dim) )
+    return MultiDimRoPE( 
+        rand(Float32, dim ÷ 2, d_coords), # Thetas
+        rand(Float32, dim, dim), # Free matrix
+    )
 end
 
 # embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
@@ -148,4 +151,47 @@ function (rope::MultiDimRoPE)(x::AbstractArray, positions::AbstractArray)
     #x = ((x .* real.(R_cis)) .+ (x_perm .* imag.(R_cis)))
     
     return reshape(x, size(x, 1), batchdims...)
+end 
+
+#---------------------------STRING---------------------------------
+struct STRING
+    dim
+    thetas
+    orthogonal_parameter
 end
+
+Flux.@layer STRING
+
+# dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
+function STRING(dim::Int, d_coords::Int)
+    @assert iseven(dim) "Dimensionality (dim) must be even for RoPE, dim=$dim was given."
+    # d_coords must divide dim?
+
+    return STRING( 
+        dim, # Dimensionality
+        rand(Float32, dim ÷ 2), # Thetas
+        rand(Float32, dim, dim), # Orthogonal paramter
+    )
+end
+
+function ContinuousRoPE(x::Number, params::STRING)
+    thetas = params.thetas
+    rotation_matrices = [[cos(x*thetas[i]) -sin(x*thetas[i]); sin(x*thetas[i]) cos(x*thetas[i])] for i in params.dim ÷ 2]
+    println(rotation_matrices)
+    return cat([1,2], rotation_matrices)
+end
+
+# embedding tensor shapes: (head_dim, seqlen, n_heads, batch)
+# pure unoptimized implementation of STRING 
+function (rope::STRING)(position::AbstractArray)
+    batchdims = size(x)[2:end] # (seqlen, n_heads, batch)
+
+    MultiRoPE = Matrix{Float32}(I, dim, dim)
+    #= eq. 5 STRING paper
+    for i in 1:d_coords
+        SingleDimRoPE
+        
+        prod *= 
+    end=#
+end
+    

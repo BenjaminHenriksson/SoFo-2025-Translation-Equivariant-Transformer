@@ -46,5 +46,8 @@ export
     # UNet helper functions:
     reverse_tuple,
     process_encoders,
-    process_decoders
+    process_decoders,
+    # RoPE
+    ContinuousRoPE,
+    STRING
 end
