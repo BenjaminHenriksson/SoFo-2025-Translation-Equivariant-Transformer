@@ -64,10 +64,6 @@ function (rope::STRING)(position::AbstractArray)
     nblocks = size(MultiRope,3) # number of blocks RoPE = dim÷2
     ncols = size(P,2) # number of columns in P = dim
     
-    # Dimensionality checks
-    @assert size(MultiRope,1) == 2 && size(MultiRope,2) == 2 "blocks must be 2×2 rotation matrices"
-    @assert size(P,1) == 2 * nblocks "row count of P must equal 2×nblocks"
-
     # 4-D views that align the contraction index (β) as dimension 2
     D = reshape(MultiRope, 2, 2, nblocks, 1)        # α  β  k  1
     Q = reshape(P_transpose, 1, 2, nblocks, ncols)  # 1  β  k  γ
