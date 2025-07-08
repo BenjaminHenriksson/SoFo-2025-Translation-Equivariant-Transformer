@@ -5,7 +5,7 @@
 @info "Using local STRING.jl (dev env)"
 
 # FOR DEV ONLY
-# using Random;rng = Xoshiro(0)
+using Random;rng = Xoshiro(0)
 
 struct STRING
     dim::Int
@@ -16,68 +16,75 @@ end
 
 #Flux.@layer STRING
 
-# dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
+# dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3)
 function STRING(dim::Int, d_coords::Int)
     @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
-    # d_coords must divide dim? -- Doesn't seem so
 
-    return STRING( 
-        dim, # Dimensionality of head
-        d_coords, # Dimensionality of token position space
-        rand(rng, Float32, dim ÷ 2), # Thetas, FOR DEV ONLY: rand(rng, Float32, dim ÷ 2)
-        rand(rng, Float32, dim, dim), # Orthogonal paramter
+    return STRING(
+        dim,                                # Dimensionality of head
+        d_coords,                           # Dimensionality of token position space
+        rand(rng, Float32, dim ÷ 2),        # Thetas (FOR DEV ONLY)
+        rand(rng, Float32, dim, dim),       # Orthogonal parameter
     )
 end
 
-# eq. 2/3 STRING paper
-function ContinuousRoPE(x::Real, rope::STRING)
-    # Everything here stays Float32
+# Batch‑aware variant  –  accepts x with shape (seq_len, batch)
+# Returns rotation matrices of shape (2, 2, k, seq_len, batch)
+function ContinuousRoPE(x::AbstractArray, rope::STRING)
+    # Phase: (k, S, B)  ←  broadcast multiply
+    phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
 
-    phase = x .* rope.thetas # Vectorised multiply
-    c, s = cos.(phase), sin.(phase) # two N-length vectors
-    
-    # Initialize block diagonal matrix with shape (2, 2, number of blocks)
-    out = Array{eltype(c),3}(undef, 2, 2, rope.dim ÷ 2)
+    c = cos.(phase)                                 # (k,S,B)
+    s = sin.(phase)
 
-    # Construct rotation matrices
-    out[1, 1, :] = c
-    out[1, 2, :] = -s
-    out[2, 1, :] = s
-    out[2, 2, :] = c
-
-    return out
+    # Assemble rotation blocks (2,2,k,S,B) without loops
+    rot = similar(c, Float32, 2, 2, size(c,1), size(c,2), size(c,3))
+    rot[1,1,:,:,:] .= c
+    rot[1,2,:,:,:] .= -s
+    rot[2,1,:,:,:] .= s
+    rot[2,2,:,:,:] .=  c
+    return rot
 end
 
-# pure unoptimized implementation of STRING 
+# -------------------------------------------------------------------
+# STRING forward pass – now batch aware
+# -------------------------------------------------------------------
+# Expects `position` with shape (d_coords, seq_len, batch)
+# Returns a tensor with shape (dim, seq_len, batch, dim)
 function (rope::STRING)(position::AbstractArray)
-    @assert length(position) == rope.d_coords "Coordinate vector dimensionality must match STRING instance."
-    
-    # Optimization consequence of eq. 5, STRING paper
-    coordinate_sum = sum(position)
+    @assert ndims(position) == 3 "Position must have shape (d_coords, seq_len, batch)."
+    @assert size(position,1) == rope.d_coords "Coordinate dimension mismatch."
 
-    # eq. 5 STRING paper, diagonal matrix of 2×2 blocks stored in third dimension: (2, 2, dim÷2)
-    MultiRope = ContinuousRoPE(coordinate_sum, rope) 
-    
-    # Orthogonal matrix in eq. 9 STRING paper
-    A = rope.orthogonal_parameter
-    P = exp(A - A')
-    P_transpose = P'
+    # Sum over spatial coordinates → (seq_len, batch)
+    coordinate_sum = dropdims(sum(position; dims=1), dims=1)
 
-    nblocks = size(MultiRope,3) # number of blocks RoPE = dim÷2
-    ncols = size(P,2) # number of columns in P = dim
-    
-    # 4-D views that align the contraction index (β) as dimension 2
-    D = reshape(MultiRope, 2, 2, nblocks, 1)        # α  β  k  1
-    Q = reshape(P_transpose, 1, 2, nblocks, ncols)  # 1  β  k  γ
+    # Rotation blocks: (2, 2, k, seq_len, batch)
+    MultiRope = ContinuousRoPE(coordinate_sum, rope)
 
-    # The follow is *a way* of multiplying a (2, 2, nblocks) block diagonal matrix, might be optimizable
+    # Orthogonal matrix from eq. 9
+    A  = rope.orthogonal_parameter
+    P  = exp(A - A')
+    PT = P'                                          # (dim, dim)
 
-    # Element-wise multiply, then sum over β to contract it:
-    # out[α,k,γ] = Σ_β  D[α,β,k,1] * Q[1,β,k,γ]
-    output = dropdims(sum(D .* Q; dims=2), dims=2) # (2,k,ncols)
-    output = reshape(output, rope.dim, rope.dim) # back to (n, ncols)
-    
-    # This should be equivalent to solely "return output" in the attention layer, but 
-    # "P * output" is required here for translational invariance test cases to hold
-    return P * output
+    k   = size(MultiRope,3)                          # number of 2×2 blocks
+    S   = size(MultiRope,4)                          # seq_len
+    B   = size(MultiRope,5)                          # batch
+    γ   = size(PT,2)                                 # dim
+
+    # Align β‑index (second dim) for contraction
+    D = reshape(MultiRope, 2, 2, k, S, B, 1)         # α β k S B 1
+    Q = reshape(PT,        1, 2, k, 1, 1, γ)         # 1 β k 1 1 γ
+
+    # Contract over β without explicit loops
+    out = dropdims(sum(D .* Q; dims=2), dims=2)      # (2, k, S, B, γ)
+
+    # Merge α & k → dim
+    out = reshape(out, rope.dim, S, B, γ)            # (dim, S, B, γ)
+
+    # Left‑multiply by P for each (S,B) slice
+    out2d = reshape(out, rope.dim, :)                # flatten trailing dims
+    final = P * out2d                                # (dim, S*B*γ)
+    final = reshape(final, rope.dim, S, B, γ)        # (dim, S, B, dim)
+
+    return final
 end
