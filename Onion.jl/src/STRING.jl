@@ -4,15 +4,17 @@
 
 @info "Using local STRING.jl (dev env)"
 
+# FOR DEV ONLY
+# using Random;rng = Xoshiro(0)
 
-struct STRING{A<:AbstractArray}
+struct STRING
     dim::Int
     d_coords::Int
-    thetas::A
-    orthogonal_parameter::A
+    thetas
+    orthogonal_parameter
 end
 
-Flux.@layer STRING
+#Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
 function STRING(dim::Int, d_coords::Int)
@@ -22,8 +24,8 @@ function STRING(dim::Int, d_coords::Int)
     return STRING( 
         dim, # Dimensionality of head
         d_coords, # Dimensionality of token position space
-        rand(Float32, dim ÷ 2), # Thetas
-        rand(Float32, dim, dim), # Orthogonal paramter
+        rand(rng, Float32, dim ÷ 2), # Thetas, FOR DEV ONLY: rand(rng, Float32, dim ÷ 2)
+        rand(rng, Float32, dim, dim), # Orthogonal paramter
     )
 end
 
@@ -67,6 +69,8 @@ function (rope::STRING)(position::AbstractArray)
     # 4-D views that align the contraction index (β) as dimension 2
     D = reshape(MultiRope, 2, 2, nblocks, 1)        # α  β  k  1
     Q = reshape(P_transpose, 1, 2, nblocks, ncols)  # 1  β  k  γ
+
+    # The follow is *a way* of multiplying a (2, 2, nblocks) block diagonal matrix, might be optimizable
 
     # Element-wise multiply, then sum over β to contract it:
     # out[α,k,γ] = Σ_β  D[α,β,k,1] * Q[1,β,k,γ]
