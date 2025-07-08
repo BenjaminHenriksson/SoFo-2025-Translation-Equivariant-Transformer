@@ -20,5 +20,5 @@ function random_batch(dat, L, B, filt_inds)
     return (;locs, AAs = Flux.onehotbatch(AAs, 1:20))
 end
 
-batch = random_batch(dat, L, 10, train_inds)
+batch = random_batch(dat, L, 10, train_inds) # shape = (3, 30, 10) = (d_coords, seq_len, batches)
  
