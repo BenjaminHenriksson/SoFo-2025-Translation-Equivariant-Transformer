@@ -96,15 +96,15 @@ function (rope::STRING)(position::AbstractArray)
         OLD_MultiRoPE *= OLD_ContinuousRoPE(position[i], rope) 
     end
 
-    println(MultiRope)
-    println(OLD_MultiRoPE)
+    #println(MultiRope)
+    #println(OLD_MultiRoPE)
 
     # eq. 9 STRING paper
     A = rope.orthogonal_parameter
     P = exp(A - A')
     output = qdq_block(P, MultiRope)
 
-    print(isapprox(output, P * OLD_MultiRoPE * P'))
+    println(isapprox(output, P * OLD_MultiRoPE * P'))
 
     return output
 end

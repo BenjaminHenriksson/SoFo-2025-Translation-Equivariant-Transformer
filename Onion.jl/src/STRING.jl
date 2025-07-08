@@ -1,19 +1,23 @@
-using SparseArrays  # built‐in stdlib
-using LinearAlgebra # for cos / sin
+# Multidimensional RoPE (STRING) from Schneck et al. 2025:
+# "Learning the RoPEs: Better 2D and 3D Position Encodings with STRING".
+# Link to paper: https://arxiv.org/abs/2502.02562
 
-struct STRING
-    dim
-    d_coords
-    thetas
-    orthogonal_parameter
+@info "Using local STRING.jl (dev env)"
+
+
+struct STRING{A<:AbstractArray}
+    dim::Int
+    d_coords::Int
+    thetas::A
+    orthogonal_parameter::A
 end
 
 Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
 function STRING(dim::Int, d_coords::Int)
-    @assert iseven(dim) "Dimensionality (dim) must be even for RoPE, dim=$dim was given."
-    # d_coords must divide dim?
+    @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
+    # d_coords must divide dim? -- Doesn't seem so
 
     return STRING( 
         dim, # Dimensionality of head
@@ -24,28 +28,56 @@ function STRING(dim::Int, d_coords::Int)
 end
 
 # eq. 2/3 STRING paper
-function ContinuousRoPE(x::Number, params::STRING)
-    rot(x, θ) = reshape([cos(x*θ), -sin(x*θ), sin(x*θ),  cos(x*θ)], 2, 2)
+function ContinuousRoPE(x::Real, rope::STRING)
+    # Everything here stays Float32
 
-    mats = [rot(x, params.thetas[i]) for i in 1:params.dim ÷ 2]
+    phase = x .* rope.thetas # Vectorised multiply
+    c, s = cos.(phase), sin.(phase) # two N-length vectors
+    
+    # Initialize block diagonal matrix with shape (2, 2, number of blocks)
+    out = Array{eltype(c),3}(undef, 2, 2, rope.dim ÷ 2)
 
-    BD_sparse = blockdiag(sparse.(mats)...) # block-diagonal sparse matrix
-    BD_dense  = Matrix(BD_sparse) # densify matrix again
+    # Construct rotation matrices
+    out[1, 1, :] = c
+    out[1, 2, :] = -s
+    out[2, 1, :] = s
+    out[2, 2, :] = c
 
-    return BD_dense
+    return out
 end
 
 # pure unoptimized implementation of STRING 
 function (rope::STRING)(position::AbstractArray)
-    MultiRoPE = Matrix{Float32}(I, rope.dim, rope.dim)
+    @assert length(position) == rope.d_coords "Coordinate vector dimensionality must match STRING instance."
     
-    # eq. 5 STRING paper
-    for i in 1:rope.d_coords    
-        MultiRoPE *= ContinuousRoPE(position[i], rope) 
-    end
+    # Optimization consequence of eq. 5, STRING paper
+    coordinate_sum = sum(position)
 
+    # eq. 5 STRING paper, diagonal matrix of 2×2 blocks stored in third dimension: (2, 2, dim÷2)
+    MultiRope = ContinuousRoPE(coordinate_sum, rope) 
+    
+    # Orthogonal matrix in eq. 9 STRING paper
     A = rope.orthogonal_parameter
     P = exp(A - A')
+    P_transpose = P'
 
-    return (P * MultiRoPE * P')
+    nblocks = size(MultiRope,3) # number of blocks RoPE = dim÷2
+    ncols = size(P,2) # number of columns in P = dim
+    
+    # Dimensionality checks
+    @assert size(MultiRope,1) == 2 && size(MultiRope,2) == 2 "blocks must be 2×2 rotation matrices"
+    @assert size(P,1) == 2 * nblocks "row count of P must equal 2×nblocks"
+
+    # 4-D views that align the contraction index (β) as dimension 2
+    D = reshape(MultiRope, 2, 2, nblocks, 1)        # α  β  k  1
+    Q = reshape(P_transpose, 1, 2, nblocks, ncols)  # 1  β  k  γ
+
+    # Element-wise multiply, then sum over β to contract it:
+    # out[α,k,γ] = Σ_β  D[α,β,k,1] * Q[1,β,k,γ]
+    output = dropdims(sum(D .* Q; dims=2), dims=2) # (2,k,ncols)
+    output = reshape(output, rope.dim, rope.dim) # back to (n, ncols)
+    
+    # This should be equivalent to solely "return output" in the attention layer, but 
+    # "P * output" is required here for translational invariance test cases to hold
+    return P * output
 end
