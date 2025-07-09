@@ -30,7 +30,7 @@ Flux.@layer Toy1
 function Toy1(dim, depth)
     layers = (;
         loc_encoder = Dense(3 => dim, bias=false),
-        transformers = [Onion.TransformerBlock(dim, 8, rope=Onion.MultiDimRoPE( Int(dim / 8), 3)) for _ in 1:depth],
+        transformers = [Onion.STRINGTransformerBlock(dim, 8, 3) for _ in 1:depth],
         AA_decoder = Dense(dim => 20, bias=false),
     )
     return Toy1(layers)
@@ -39,7 +39,7 @@ function (m::Toy1)(locs)
     l = m.layers
     x = l.loc_encoder(locs)
     for transformerblock in l.transformers
-        x = transformerblock(x, 0, nothing, x_pos = locs)
+        x = transformerblock(x, positions=locs)
     end
     aa_logits = l.AA_decoder(x)
     return aa_logits
@@ -64,8 +64,6 @@ for epoch in 1:20 # 1:100
             push!(losses, tot_loss/50)
             tot_loss = 0f0
         end
-        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_MultiDimRoPE.pdf")
+        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_STRING.pdf")
     end
 end
-
-# 42 minute runtime

@@ -2,10 +2,10 @@
 # "Learning the RoPEs: Better 2D and 3D Position Encodings with STRING".
 # Link to paper: https://arxiv.org/abs/2502.02562
 
-@info "Using local STRING.jl (dev env)"
+@info "Using local STRING_backup.jl (dev env)"
 
 # FOR DEV ONLY
-using Random;rng = Xoshiro(0)
+using Flux, Random;rng = Xoshiro(0)
 
 struct STRING
     dim::Int
@@ -14,7 +14,7 @@ struct STRING
     orthogonal_parameter
 end
 
-#Flux.@layer STRING
+Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
 function STRING(dim::Int, d_coords::Int)

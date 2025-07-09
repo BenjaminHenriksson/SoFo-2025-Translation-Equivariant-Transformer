@@ -7,14 +7,14 @@
 # FOR DEV ONLY
 using Random;rng = Xoshiro(0)
 
-struct STRING
-    dim::Int
-    d_coords::Int
+@concrete struct STRING
+    dim
+    d_coords
     thetas
     orthogonal_parameter
 end
 
-#Flux.@layer STRING
+Flux.@layer STRING 
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3)
 function STRING(dim::Int, d_coords::Int)
@@ -23,8 +23,8 @@ function STRING(dim::Int, d_coords::Int)
     return STRING(
         dim,                                # Dimensionality of head
         d_coords,                           # Dimensionality of token position space
-        rand(rng, Float32, dim ÷ 2),        # Thetas (FOR DEV ONLY)
-        rand(rng, Float32, dim, dim),       # Orthogonal parameter
+        rand(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
+        rand(rng, Float32, dim, dim),            # Orthogonal parameter
     )
 end
 
@@ -34,23 +34,17 @@ function ContinuousRoPE(x::AbstractArray, rope::STRING)
     # Phase: (k, S, B)  ←  broadcast multiply
     phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
 
-    c = cos.(phase)                                 # (k,S,B)
-    s = sin.(phase)
+    c = rearrange(cos.(phase), (..) --> (1, 1, ..))                             # (k,S,B)
+    s = rearrange(sin.(phase), (..) --> (1, 1, ..))
 
     # Assemble rotation blocks (2,2,k,S,B) without loops
-    rot = similar(c, Float32, 2, 2, size(c,1), size(c,2), size(c,3))
-    rot[1,1,:,:,:] .= c
-    rot[1,2,:,:,:] .= -s
-    rot[2,1,:,:,:] .= s
-    rot[2,2,:,:,:] .=  c
+    rot = [c -s
+           s  c]
     return rot
 end
 
-# -------------------------------------------------------------------
-# STRING forward pass – now batch aware
-# -------------------------------------------------------------------
 # Expects `position` with shape (d_coords, seq_len, batch)
-# Returns a tensor with shape (dim, seq_len, batch, dim)
+# Returns a tensor with shape (dim, dim, seq_len, batch)
 function (rope::STRING)(position::AbstractArray)
     @assert ndims(position) == 3 "Position must have shape (d_coords, seq_len, batch)."
     @assert size(position,1) == rope.d_coords "Coordinate dimension mismatch."
@@ -85,6 +79,41 @@ function (rope::STRING)(position::AbstractArray)
     out2d = reshape(out, rope.dim, :)                # flatten trailing dims
     final = P * out2d                                # (dim, S*B*γ)
     final = reshape(final, rope.dim, S, B, γ)        # (dim, S, B, dim)
+    final = permutedims(final, (1, 4, 2, 3))         # (dim, dim, S, B)
 
     return final
 end
+
+
+@concrete struct STRINGTransformerBlock
+    attention
+    feed_forward
+    attention_norm
+    ffn_norm
+    STRING
+end
+
+function STRINGTransformerBlock(
+    dim::Int, n_heads::Int, d_coords::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
+    norm_eps=1f-5, qkv_bias=false, 
+)
+    STRINGTransformerBlock(
+        Attention(dim, n_heads, n_kv_heads; qkv_bias),
+        StarGLU(dim, ff_hidden_dim),
+        RMSNorm(dim, eps=norm_eps),
+        RMSNorm(dim, eps=norm_eps),
+        STRING(dim, d_coords)
+    )
+end
+
+function (block::STRINGTransformerBlock)(x; start_pos=1, mask=0, positions=nothing)
+    h = x + block.attention(block.attention_norm(x), start_pos, block.STRING, mask; positions)
+    out = h + block.feed_forward(block.ffn_norm(h))
+    return out
+end
+
+# compat
+(block::STRINGTransformerBlock)(x, start_pos, rope=identity, mask=0) =
+    block(x; start_pos, rope, mask)
+
+Flux.@layer STRINGTransformerBlock

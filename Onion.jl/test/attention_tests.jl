@@ -39,9 +39,9 @@ using Flux
 
         attn = Onion.Attention(dim, n_heads)
         no_mask_output = attn(x)
-        int_mask_output = attn(x, 1, nothing, int_mask)
-        batch_mask_output = attn(x, 1, nothing, batch_mask)
-        seq_mask_output = attn(x, 1, nothing, seq_mask)
+        int_mask_output = attn(x, mask=int_mask)
+        batch_mask_output = attn(x, mask=batch_mask)
+        seq_mask_output = attn(x, mask=seq_mask)
 
         # Zero mask should work and give same output regardless of if it's batch-specific, sequence-specific or just an Int
         @test isapprox(no_mask_output, int_mask_output)
@@ -51,10 +51,10 @@ using Flux
         # Using some arbitrary batch_mask should be identical to a seq_mask with the same mask for for every batch
         rand_batch_mask = randn(Float32, seq_len, seq_len)
         rand_seq_mask = repeat(rand_batch_mask, 1, 1, batch_size) 
-        batch_mask_output = attn(x, 1, nothing, rand_batch_mask)
-        seq_mask_output = attn(x, 1, nothing, rand_seq_mask)
+        batch_mask_output = attn(x, mask=rand_batch_mask)
+        seq_mask_output = attn(x, mask=rand_seq_mask)
 
-        @test isapprox(attn(x, 1, nothing, rand_batch_mask), attn(x, 1, nothing, rand_seq_mask))
+        @test isapprox(attn(x, mask=rand_batch_mask), attn(x, mask=rand_seq_mask))
     end
 
     @testset "Masking Invariance" begin
@@ -67,8 +67,8 @@ using Flux
         batch_mask = zeros(Float32, seq_len, seq_len)
         batch_mask[2,1] = -Inf32
         attn = Onion.Attention(dim, n_heads)
-        output = attn(x, 1, nothing, batch_mask)
-        mod_output = attn(x_mod, 1, nothing, batch_mask)
+        output = attn(x, mask=batch_mask)
+        mod_output = attn(x_mod, mask=batch_mask)
         
         @test isapprox(output[:, 1, :], mod_output[:, 1, :])
         @test !isapprox(output[:, 2, :], mod_output[:, 2, :])
@@ -87,8 +87,8 @@ using Flux
 
         attn = Onion.Attention(dim, n_heads)
 
-        output = attn(x, 1, nothing, batch_mask)
-        mod_output = attn(x_mod, 1, nothing, batch_mask)
+        output = attn(x, mask=batch_mask)
+        mod_output = attn(x_mod, mask=batch_mask)
 
         @test isapprox(output[:, 1, :], mod_output[:, 1, :])
         @test !isapprox(output, mod_output)
@@ -113,9 +113,9 @@ using Flux
         seq_mask[12,10,4] = -Inf32 
         
         attn = Onion.Attention(dim, n_heads)
-        output = attn(q, k, 1, nothing, seq_mask)
+        output = attn(q, k, mask=seq_mask)
         
-        mod_output = attn(q, k_mod, 1, nothing, seq_mask)        
+        mod_output = attn(q, k_mod, mask=seq_mask)        
         # The masked positions should be invariant to the changes in the key
         @test isapprox(output[:, 1, 1], mod_output[:, 1, 1])
         @test isapprox(output[:, 2, 2], mod_output[:, 2, 2])
