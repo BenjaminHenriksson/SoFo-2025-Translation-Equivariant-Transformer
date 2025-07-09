@@ -75,6 +75,9 @@ function (rope::STRING)(position::AbstractArray)
     # Merge α & k → dim
     out = reshape(out, rope.dim, S, B, γ)            # (dim, S, B, γ)
 
+    # This section should be removable, see remark under eq. 9 in STRING paper 
+    # (this would however break translational invariance tests)
+    
     # Left‑multiply by P for each (S,B) slice
     out2d = reshape(out, rope.dim, :)                # flatten trailing dims
     final = P * out2d                                # (dim, S*B*γ)
