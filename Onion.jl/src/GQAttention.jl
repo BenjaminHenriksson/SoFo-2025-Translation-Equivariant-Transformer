@@ -93,7 +93,7 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
     k = rearrange(attn.wk(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
     v = rearrange(attn.wv(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
 
-    xq, xk = if rope isa RoPE
+    xq, xk = if rope isa RoPE || rope == identity #compat: || (isnothing(rope) && rope = identity)
         rope(xq), rope(xk)
     elseif rope isa STRING
         roped_positions = rope(positions)
