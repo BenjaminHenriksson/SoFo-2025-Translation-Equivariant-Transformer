@@ -1,6 +1,7 @@
+# REQUIRES SEEDED RNG GENERATORS FOR BOTH INSTANCES
 using Pkg; Pkg.activate("."); Pkg.instantiate()
 
-using Test, Onion
+using Test, Onion, Random
 
 module STRINGBackup
     include(joinpath(@__DIR__, "Onion.jl", "src", "STRING_backup.jl"))
@@ -18,10 +19,10 @@ end
     positions = rand(Float32, d_coords, seq_len, batch)
     batched_out = rope_batched(positions)
 
-    expected = Array{Float32}(undef, dim, seq_len, batch, dim)
+    expected = Array{Float32}(undef, dim, dim, seq_len, batch)
     for b in 1:batch
         for s in 1:seq_len
-            expected[:, s, b, :] = rope_nonbatched(positions[:, s, b])
+            expected[:, :, s, b] = rope_nonbatched(positions[:, s, b])
         end
     end
 

@@ -19,7 +19,7 @@ function FSQ(l::A, chunk_size::Int) where A
     return FSQ(l, f, chunk_size)
 end
 
-diffround(x) = x .+ Flux.Zygote.ignore_derivatives(round.(x) .- x)
+diffround(x) = x .+ ignore_derivatives(round.(x) .- x)
 
 (fsq::FSQ)(x) = diffround(fsq.q(x))
 

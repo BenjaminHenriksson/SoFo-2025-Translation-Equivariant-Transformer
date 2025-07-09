@@ -1,54 +1,65 @@
 module Onion
 
-using Flux, LinearAlgebra, BatchedTransformations
+using BatchedTransformations
+using ChainRulesCore
+using ConcreteStructs
+using Einops
+using Flux
+using LinearAlgebra
 
 include("shared.jl")
-include("AdaLN.jl")
-include("RMSNorm.jl")
-include("DyT.jl")
-include("StarGLU.jl")
-include("GQAttention.jl")
-include("RoPE.jl")
-include("UNet.jl")
-include("FlexibleUNet.jl")
-include("FSQ.jl")
-include("IPAHelpers.jl")
-include("STRING.jl")
+export glut
 
-export
-    #shared:
-    glut,
-    #layers:
-    AdaLN,
-    RMSNorm,
-    DyT,
-    StarGLU,
-    GQAttention,
-    RoPE,
-    TransformerBlock,
-    Attention,
-    FSQ,
-    Framemover,
-    IPAblock,
-    CrossFrameIPA,
-    pair_encode,
-    chunk,
-    unchunk,
-    self_att_padding_mask,
-    cross_att_padding_mask,
-    # UNet components:
-    GaussianFourierProjection,
-    TimeEmbedding,
-    ResidualBlock,
-    EncoderBlock,
-    DecoderBlock,
-    Bottleneck,
-    FlexibleUNet,
-    # UNet helper functions:
-    reverse_tuple,
-    process_encoders,
-    process_decoders,
-    # RoPE
-    ContinuousRoPE,
-    STRING
+include("AdaLN.jl")
+export AdaLN
+
+include("RMSNorm.jl")
+export RMSNorm
+
+include("DyT.jl")
+export DyT
+
+include("StarGLU.jl")
+export StarGLU
+
+include("GQAttention.jl")
+export Attention
+export TransformerBlock
+export AdaTransformerBlock
+export DART
+export self_att_padding_mask
+export cross_att_padding_mask
+
+include("RoPE.jl")
+export RoPE
+
+include("STRING.jl")
+export STRING
+export STRINGTransformerBlock
+
+include("UNet.jl")
+export GaussianFourierProjection
+export TimeEmbedding
+export ResidualBlock
+export EncoderBlock
+export DecoderBlock
+export Bottleneck
+
+include("FlexibleUNet.jl")
+export FlexibleUNet
+export reverse_tuple
+export process_encoders
+export process_decoders
+
+include("FSQ.jl")
+export FSQ
+export chunk
+export unchunk
+
+include("IPAHelpers.jl")
+export Framemover
+export IPAblock
+export CrossFrameIPA
+export pair_encode
+
 end

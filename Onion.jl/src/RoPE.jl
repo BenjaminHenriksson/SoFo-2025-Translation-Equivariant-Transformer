@@ -1,6 +1,3 @@
-using LinearAlgebra
-
-
 """
     RoPE(dim::Int, max_length; theta::T=10000f0)
     
