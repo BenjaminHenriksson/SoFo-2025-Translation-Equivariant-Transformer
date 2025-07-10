@@ -46,8 +46,8 @@ and return an array of shape
     (64 , N , N , B)   # 64 = rff.out, N = number of residues, B = batch
 """
 function pairwise_rff(locs, rff)
-    D2 = batched_pairwise_dist(locs)            # (N , N , B), squared
-    D  = sqrt.(D2 .+ 1f-8)                      # distances, avoid sqrt(0)
+    D = batched_pairwise_dist(locs)            # (N , N , B), squared
+    #D  = sqrt.(D .+ 1f-8)                      # distances, avoid sqrt(0)
     Dvec = reshape(D, 1, :, size(D,3))          # (1 , N*N , B)
     Φvec = rff(Dvec)                            # (64, N*N,  B)
     reshape(Φvec, 64, size(D,1), size(D,2), :)  # (64, N, N, B)
@@ -82,20 +82,21 @@ function (m::ToyTI)(locs)
 
     # --- sequence modelling -----------------------------------------
     for block in l.transformers
-        x = block(x)                            # no `positions` arg needed
+        x = block(x, positions = locs)
     end
 
     return l.aa_decode(x)                       # (20, N, B)  – amino-acid logits
 end
 
-model = Toy1(64, 4)
+model = ToyTI(64, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
-
-for epoch in 1:20 # 1:100
+i = 1
+epoch = 1
+#for epoch in 1:20 # 1:100
     tot_loss = 0f0
-    for i in 1:1_000 # 1:10_000
+#    for i in 1:1_000 # 1:10_000
         batch = random_batch(dat, L, 10, train_inds)
         l, grad = Flux.withgradient(model) do m
             random_shift = rand(Float32, 3)
@@ -110,5 +111,5 @@ for epoch in 1:20 # 1:100
             tot_loss = 0f0
         end
         (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_STRING_RFF.pdf")
-    end
-end
+#    end
+#end

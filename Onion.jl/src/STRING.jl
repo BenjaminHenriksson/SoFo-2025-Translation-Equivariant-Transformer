@@ -14,7 +14,7 @@ using Random;rng = Xoshiro(0)
     orthogonal_parameter
 end
 
-Flux.@layer STRING 
+Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3)
 function STRING(dim::Int, d_coords::Int)
@@ -93,7 +93,7 @@ end
     feed_forward
     attention_norm
     ffn_norm
-    STRING
+    stringfield
 end
 
 function STRINGTransformerBlock(
@@ -110,7 +110,7 @@ function STRINGTransformerBlock(
 end
 
 function (block::STRINGTransformerBlock)(x; start_pos=1, mask=0, positions=nothing)
-    h = x + block.attention(block.attention_norm(x), start_pos, block.STRING, mask; positions)
+    h = x + block.attention(block.attention_norm(x), start_pos, block.stringfield, mask; positions)
     out = h + block.feed_forward(block.ffn_norm(h))
     return out
 end
