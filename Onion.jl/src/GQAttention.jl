@@ -1,6 +1,7 @@
 #Scaled dot product attention
 function sdpa(xq::AbstractArray{T}, xk::AbstractArray{T}, xv::AbstractArray{T}, mask = 0) where T
     A = softmax(batched_mul(batched_transpose(xk), xq) / sqrt(T(size(xq, 1))) .+ mask; dims=1)
+    #println(size(xv), size(A))
     return batched_mul(xv, A)
 end
 
@@ -88,30 +89,45 @@ end
 (attn::Attention)(xq::AbstractArray, xk::AbstractArray, start_pos, rope=identity, mask=0; positions=nothing) =
     attn(xq, xk; start_pos, rope, mask, positions)
 
+#@eval Onion begin
 function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1, rope=identity, mask=0, positions=nothing)
     q = rearrange(attn.wq(xq), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
     k = rearrange(attn.wk(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
     v = rearrange(attn.wv(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
-
-    xq, xk = if rope isa RoPE || rope == identity #compat: || (isnothing(rope) && rope = identity)
-        rope(xq), rope(xk)
+    #@show size(v)
+    #@show size(q)
+    q, k = if rope isa RoPE || rope == identity #compat: || (isnothing(rope) && rope = identity)
+        rope(q), rope(k)
     elseif rope isa STRING
         roped_positions = rope(positions)
         sizes = size(roped_positions)
-        xq2 = reshape(xq, sizes[1], 1, sizes[3], sizes[4])
-        xk2 = reshape(xk, sizes[1], 1, sizes[3], sizes[4])
-        batched_mul(roped_positions, xq2), batched_mul(roped_positions, xk2)
+        #@show sizes
+        qk_sizes = size(q)
+        #@show size(roped_positions) # problem below
+        roped_positions = repeat(reshape(roped_positions, sizes[1], sizes[2], sizes[3], 1, sizes[4]), 1, 1, 1, qk_sizes[3], 1)
+        #@show size(roped_positions)
+        q2 = reshape(q, qk_sizes[1], 1, qk_sizes[2:end]...)
+        k2 = reshape(k, qk_sizes[1], 1, qk_sizes[2:end]...)
+        #@show size(q2)
+        batched_mul(roped_positions, q2), batched_mul(roped_positions, k2)
+        # ^should be batched vec but requires flatten complications
     end
-
+    
+    if rope isa STRING
+        q, k = dropdims(q; dims=2), dropdims(k; dims=2)
+    end
+    #@show size(q)
+    #@show size(v)
     q_per_kv = attn.n_heads ÷ attn.n_kv_heads # for multi-query attention    
     q_heads = rearrange(q, (:head_dim, :len, ..) --> (:head_dim, :len, (..,)))
     k_heads = repeat(k, (:head_dim, :len, ..) --> (:head_dim, :len, (:q_per_kv, ..)); q_per_kv)
     v_heads = repeat(v, (:head_dim, :len, ..) --> (:head_dim, :len, (:q_per_kv, ..)); q_per_kv)
-
-    output = sdpa(q_heads, k_heads, v_heads, mask)
+    #@show size(v)
+    output = sdpa(q_heads, k_heads, v_heads, mask) # problem is here
     output = rearrange(output, (:head_dim, :len, (:heads, :batch)) --> ((:head_dim, :heads), :len, :batch); heads=attn.n_heads)
     return attn.wo(output)
 end
+#end
 
 @concrete struct TransformerBlock
     attention
