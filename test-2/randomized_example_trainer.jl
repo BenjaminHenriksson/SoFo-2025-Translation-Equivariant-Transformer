@@ -60,6 +60,8 @@ model = Toy1(64, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
+#model_inital = deepcopy(model)
+
 for epoch in 1:20 # 1:100
     tot_loss = 0f0
     for i in 1:1_000 # 1:10_000
@@ -79,3 +81,6 @@ for epoch in 1:20 # 1:100
         (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_STRING.pdf")
     end
 end
+
+#println(model_inital)
+#println(model)
