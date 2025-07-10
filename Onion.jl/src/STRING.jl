@@ -105,12 +105,12 @@ function STRINGTransformerBlock(
         StarGLU(dim, ff_hidden_dim),
         RMSNorm(dim, eps=norm_eps),
         RMSNorm(dim, eps=norm_eps),
-        STRING(dim, d_coords)
+        STRING( Int(dim/n_heads) , d_coords)
     )
 end
 
 function (block::STRINGTransformerBlock)(x; start_pos=1, mask=0, positions=nothing)
-    h = x + block.attention(block.attention_norm(x), start_pos, block.stringfield, mask; positions)
+    h = x + block.attention(block.attention_norm(x), start_pos, block.stringfield, mask; positions=positions)
     out = h + block.feed_forward(block.ffn_norm(h))
     return out
 end
