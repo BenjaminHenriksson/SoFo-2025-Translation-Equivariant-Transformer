@@ -92,11 +92,9 @@ model = ToyTI(64, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
-i = 1
-epoch = 1
-#for epoch in 1:20 # 1:100
+for epoch in 1:20 # 1:100
     tot_loss = 0f0
-#    for i in 1:1_000 # 1:10_000
+    for i in 1:1_000 # 1:10_000
         batch = random_batch(dat, L, 10, train_inds)
         l, grad = Flux.withgradient(model) do m
             random_shift = rand(Float32, 3)
@@ -111,5 +109,5 @@ epoch = 1
             tot_loss = 0f0
         end
         (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_STRING_RFF.pdf")
-#    end
-#end
+    end
+end
