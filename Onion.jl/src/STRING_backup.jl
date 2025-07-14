@@ -19,13 +19,20 @@ Flux.@layer STRING
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3) 
 function STRING(dim::Int, d_coords::Int)
     @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
-    
-    return STRING( 
+
+    return STRING(
         dim, # Dimensionality of head
         d_coords, # Dimensionality of token position space
         rand(rng, Float32, dim ÷ 2), # Thetas, FOR DEV ONLY: rand(rng, Float32, dim ÷ 2)
         rand(rng, Float32, dim, dim), # Orthogonal paramter
     )
+end
+
+# Helper constructor to manually set parameters so that this backup
+# implementation can share weights with the batched variant.
+function STRING(dim::Int, d_coords::Int, thetas, orthogonal_parameter)
+    @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
+    return STRING(dim, d_coords, thetas, orthogonal_parameter)
 end
 
 # eq. 2/3 STRING paper
