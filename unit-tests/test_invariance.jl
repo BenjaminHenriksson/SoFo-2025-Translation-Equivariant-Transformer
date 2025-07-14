@@ -8,18 +8,18 @@ using Onion, Test, Flux
     d_coords = 3
     seq_len = 10
     batches = 5
-    rope = Onion.STRING(dim, d_coords)
+    rope = Onion.STRING(dim, d_coords, 1)
 
     for _ in 1:3
         xi = rand(Float32, d_coords, seq_len, batches)
         xj = rand(Float32, d_coords, seq_len, batches)
 
         # lhs = rope(xi)' * rope(xj), but batched
-        lhs = batched_mul(permutedims(rope(xi), (2, 1, 3, 4)), rope(xj))
-        rhs = rope(xj .- xi)
+        lhs = batched_mul(permutedims(dropdims(rope(xi); dims=4), (2, 1, 3, 4)), dropdims(rope(xj); dims=4))
+        rhs = dropdims(rope(xj .- xi); dims=4)
         
         shift = rand(Float32, d_coords)
-        shifted_rhs = batched_mul(permutedims(rope(xi .+ shift), (2, 1, 3, 4)), rope(xj .+ shift))
+        shifted_rhs = batched_mul(permutedims(dropdims(rope(xi .+ shift); dims=4), (2, 1, 3, 4)), dropdims(rope(xj .+ shift); dims=4))
 
         # Tests basic invariance
         @test isapprox(lhs, rhs; rtol=1e-5, atol=1e-5)
@@ -28,7 +28,7 @@ using Onion, Test, Flux
         @test isapprox(lhs, shifted_rhs; rtol=1e-5, atol=1e-5)
         
         # Test to confirm actual variance after shift
-        @test !isapprox(batched_mul(permutedims(rope(xi .+ shift), (2, 1, 3, 4)), rope(xj)), lhs)
-        @test !isapprox(rope(xj .- xi .+ shift), rhs)
+        @test !isapprox(batched_mul(permutedims(dropdims(rope(xi .+ shift); dims=4), (2, 1, 3, 4)), dropdims(rope(xj); dims=4)), lhs)
+        @test !isapprox(dropdims(rope(xj .- xi .+ shift); dims=4), rhs)
     end
 end
