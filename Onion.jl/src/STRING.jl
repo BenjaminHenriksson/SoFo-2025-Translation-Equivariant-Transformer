@@ -10,6 +10,7 @@ using Random;rng = Xoshiro(0)
 @concrete struct STRING
     dim
     d_coords
+    n_heads
     thetas
     orthogonal_parameter
 end
@@ -17,14 +18,15 @@ end
 Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3)
-function STRING(dim::Int, d_coords::Int)
+function STRING(dim::Int, d_coords::Int, n_heads::Int)
     @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
 
     return STRING(
         dim,                                # Dimensionality of head
         d_coords,                           # Dimensionality of token position space
-        rand(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
-        rand(rng, Float32, dim, dim),            # Orthogonal parameter
+        n_heads,
+        randn(rng, Float32, dim ÷ 2, n_heads),       # Thetas, HERE THERE ARE IS ONE THETA ARRAY PER HEAD, SAME FOR orthogonal_parameter, FIX COMPATIBILITY WITH REST OF CODE
+        randn(rng, Float32, dim, dim, n_heads),      # Orthogonal parameter
     )
 end
 

@@ -46,8 +46,8 @@ function (m::Toy1)(locs)
 
     # 2.  Expand to (dim, L, B) without in-place mutation
     L, B = size(locs, 2), size(locs, 3)
-    tok  = reshape(tok, :, 1, 1)                       # (dim,1,1)
-    x    = tok .* ones(Float32, 1, L, B)               # (dim,L,B)
+    tok  = reshape(tok, :, 1, 1)            # (dim,1,1)
+    x    = tok .* ones(Float32, 1, L, B)    # (dim,L,B)
 
     # 3.  Usual forward pass
     for tr in l.transformers

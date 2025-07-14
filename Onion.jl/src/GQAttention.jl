@@ -101,14 +101,14 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
     elseif rope isa STRING
         roped_positions = rope(positions)
         sizes = size(roped_positions)
-        #@show sizes
         qk_sizes = size(q)
-        #@show size(roped_positions) # problem below
+        
+        # Currently duplicates STRING over heads, DONT DO THIS, have separate thetas / orthogonal_parameter for each head
         roped_positions = repeat(reshape(roped_positions, sizes[1], sizes[2], sizes[3], 1, sizes[4]), 1, 1, 1, qk_sizes[3], 1)
-        #@show size(roped_positions)
+        
+        
         q2 = reshape(q, qk_sizes[1], 1, qk_sizes[2:end]...)
         k2 = reshape(k, qk_sizes[1], 1, qk_sizes[2:end]...)
-        #@show size(q2)
         batched_mul(roped_positions, q2), batched_mul(roped_positions, k2)
         # ^should be batched vec but requires flatten complications
     end
