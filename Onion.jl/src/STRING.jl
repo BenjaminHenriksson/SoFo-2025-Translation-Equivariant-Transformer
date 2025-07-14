@@ -5,7 +5,7 @@
 @info "Using local STRING.jl (dev env)"
 
 # FOR DEV ONLY
-using Random;rng = Xoshiro(0)
+using Random; rng = Xoshiro(0)
 
 @concrete struct STRING
     dim
@@ -25,70 +25,58 @@ function STRING(dim::Int, d_coords::Int, n_heads::Int)
         dim,                                # Dimensionality of head
         d_coords,                           # Dimensionality of token position space
         n_heads,
-        randn(rng, Float32, dim ÷ 2, n_heads),       # Thetas, HERE THERE ARE IS ONE THETA ARRAY PER HEAD, SAME FOR orthogonal_parameter, FIX COMPATIBILITY WITH REST OF CODE
-        randn(rng, Float32, dim, dim, n_heads),      # Orthogonal parameter
+        randn(rng, Float32, dim ÷ 2, n_heads),
+        randn(rng, Float32, dim, dim, n_heads),
     )
 end
 
-# Batch‑aware variant  –  accepts x with shape (seq_len, batch)
-# Returns rotation matrices of shape (2, 2, k, seq_len, batch)
+# Batch‑aware variant – accepts x with shape (seq_len, batch)
+# Returns rotation matrices of shape (2, 2, k, heads, seq_len, batch)
 function ContinuousRoPE(x::AbstractArray, rope::STRING)
-    # Phase: (k, S, B)  ←  broadcast multiply
-    phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
+    phase = rope.thetas .* reshape(x, 1, 1, size(x,1), size(x,2))
 
-    c = rearrange(cos.(phase), (..) --> (1, 1, ..))                             # (k,S,B)
-    s = rearrange(sin.(phase), (..) --> (1, 1, ..))
+    c = cos.(phase)
+    s = sin.(phase)
 
-    # Assemble rotation blocks (2,2,k,S,B) without loops
-    rot = [c -s
-           s  c]
+    flat = cat(c, -s, s, c; dims=5)                     # (k, heads, S, B, 4)
+    rot = reshape(flat, size(c,1), rope.n_heads, size(x,1), size(x,2), 2, 2)
+    rot = permutedims(rot, (5,6,1,2,3,4))               # (2,2,k,heads,S,B)
     return rot
 end
 
 # Expects `position` with shape (d_coords, seq_len, batch)
-# Returns a tensor with shape (dim, dim, seq_len, batch)
+# Returns a tensor with shape (dim, dim, seq_len, heads, batch)
 function (rope::STRING)(position::AbstractArray)
     @assert ndims(position) == 3 "Position must have shape (d_coords, seq_len, batch)."
     @assert size(position,1) == rope.d_coords "Coordinate dimension mismatch."
 
-    # Sum over spatial coordinates → (seq_len, batch)
-    coordinate_sum = dropdims(sum(position; dims=1), dims=1)
+    coordinate_sum = dropdims(sum(position; dims=1), dims=1)  # (seq_len, batch)
 
-    # Rotation blocks: (2, 2, k, seq_len, batch)
+    # Rotation blocks: (2,2,k,heads,seq_len,batch)
     MultiRope = ContinuousRoPE(coordinate_sum, rope)
 
-    # Orthogonal matrix from eq. 9
-    A  = rope.orthogonal_parameter
-    P  = exp(A - A')
-    PT = P'                                          # (dim, dim)
+    A = rope.orthogonal_parameter                                     # (dim, dim, heads)
+    skew = A .- permutedims(A, (2,1,3))
+    P = mapslices(exp, skew; dims=(1,2))                               # (dim, dim, heads)
+    PT = permutedims(P, (2,1,3))                                       # (dim, dim, heads)
 
-    k   = size(MultiRope,3)                          # number of 2×2 blocks
-    S   = size(MultiRope,4)                          # seq_len
-    B   = size(MultiRope,5)                          # batch
-    γ   = size(PT,2)                                 # dim
+    k = size(MultiRope,3)                                              # number of 2×2 blocks
+    S = size(MultiRope,5)
+    B = size(MultiRope,6)
+    γ = size(PT,2)                                                     # dim
 
-    # Align β‑index (second dim) for contraction
-    D = reshape(MultiRope, 2, 2, k, S, B, 1)         # α β k S B 1
-    Q = reshape(PT,        1, 2, k, 1, 1, γ)         # 1 β k 1 1 γ
+    D = reshape(MultiRope, 2, 2, k, rope.n_heads, S, B, 1)             # α β k h S B 1
+    Q = reshape(PT,        1, 2, k, rope.n_heads, 1, 1, γ)             # 1 β k h 1 1 γ
+    out = dropdims(sum(D .* Q; dims=2), dims=2)                        # (2,k,h,S,B,γ)
 
-    # Contract over β without explicit loops
-    out = dropdims(sum(D .* Q; dims=2), dims=2)      # (2, k, S, B, γ)
-
-    # Merge α & k → dim
-    out = reshape(out, rope.dim, S, B, γ)            # (dim, S, B, γ)
-
-    # This section should be removable, see remark under eq. 9 in STRING paper 
-    # (this would however break translational invariance tests)
-    
-    # Left‑multiply by P for each (S,B) slice
-    out2d = reshape(out, rope.dim, :)                # flatten trailing dims
-    final = P * out2d                                # (dim, S*B*γ)
-    final = reshape(final, rope.dim, S, B, γ)        # (dim, S, B, dim)
-    final = permutedims(final, (1, 4, 2, 3))         # (dim, dim, S, B)
+    out = reshape(out, rope.dim, rope.n_heads, S, B, γ)                # (dim,h,S,B,dim)
+    out_for_mul = reshape(permutedims(out, (1,3,4,5,2)), rope.dim, S*B*γ, rope.n_heads)
+    final = batched_mul(P, out_for_mul)                                # (dim,S*B*γ,h)
+    final = reshape(final, rope.dim, S, B, γ, rope.n_heads)            # (dim,S,B,dim,h)
+    final = permutedims(final, (1,4,2,5,3))                            # (dim,dim,S,h,B)
 
     return final
 end
-
 
 @concrete struct STRINGTransformerBlock
     attention
@@ -100,14 +88,14 @@ end
 
 function STRINGTransformerBlock(
     dim::Int, n_heads::Int, d_coords::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
-    norm_eps=1f-5, qkv_bias=false, 
+    norm_eps=1f-5, qkv_bias=false,
 )
     STRINGTransformerBlock(
         Attention(dim, n_heads, n_kv_heads; qkv_bias),
         StarGLU(dim, ff_hidden_dim),
         RMSNorm(dim, eps=norm_eps),
         RMSNorm(dim, eps=norm_eps),
-        STRING( Int(dim/n_heads) , d_coords)
+        STRING(Int(dim/n_heads), d_coords, n_heads),
     )
 end
 

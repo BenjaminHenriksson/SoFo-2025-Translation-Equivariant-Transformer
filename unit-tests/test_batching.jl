@@ -13,12 +13,12 @@ end
     seq_len = 4
     batch = 2
 
-    rope_batched = Onion.STRING(dim, d_coords)
+    rope_batched = Onion.STRING(dim, d_coords, 1)
     rope_nonbatched = STRINGBackup.STRING(dim, d_coords)
 
     for _ in 1:3
         positions = rand(Float32, d_coords, seq_len, batch)
-        batched_out = rope_batched(positions)
+        batched_out = dropdims(rope_batched(positions); dims=4)
 
         expected = Array{Float32}(undef, dim, dim, seq_len, batch)
         for b in 1:batch
