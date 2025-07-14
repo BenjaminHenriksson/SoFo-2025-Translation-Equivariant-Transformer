@@ -14,7 +14,6 @@ end
     batch = 2
 
     rope_batched = Onion.STRING(dim, d_coords, 1)
-    # Ensure STRINGBackup sees the same parameters as the batched variant
     rope_nonbatched = STRINGBackup.STRING(
         dim,
         d_coords,
