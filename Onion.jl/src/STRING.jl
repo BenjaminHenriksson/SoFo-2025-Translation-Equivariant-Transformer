@@ -87,6 +87,40 @@ function (rope::STRING)(position::AbstractArray)
     return final
 end
 
+struct MultiHeadSTRING
+    head_dim::Int
+    n_heads::Int
+    string_heads::Vector{STRING}
+end
+
+Flux.@layer MultiHeadSTRING
+
+function MultiHeadSTRING(head_dim::Int, n_heads::Int, d_coords::Int)
+    return MultiHeadSTRING(
+        head_dim,
+        n_heads,
+        [STRING(head_dim, d_coords) for _ in n_heads]
+    )    
+end
+
+function (layer::MultiHeadSTRING)(position)
+    # position shape: (d_coords, seq_len, batch) 
+    # q/k shape: (head_dim, seq_len, heads, batch)
+
+    position_size = size(position)
+
+    out = zeros(layer.head_dim, position_size[1], position_size[2], head)
+
+    for (i, head) in enumerate(layer.string_heads)
+        out_head = head(position)
+        
+        scatter!((_dst, _src) -> _src, out, out_head, [i])
+    end
+
+    out = rearrange(out, (:head_dim, :seq_len, :batch, :heads) --> (:head_dim, :seq_len, :heads, :batch))
+
+    return out
+end
 
 @concrete struct STRINGTransformerBlock
     attention
