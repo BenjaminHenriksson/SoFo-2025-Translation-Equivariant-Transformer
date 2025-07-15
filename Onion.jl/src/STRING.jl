@@ -108,20 +108,11 @@ function MultiHeadSTRING(head_dim::Int, n_heads::Int, d_coords::Int)
 end
 
 function (layer::MultiHeadSTRING)(position)
-    # position shape: (d_coords, seq_len, batch) 
+    # position shape: (d_coords, seq_len, batch)
     # q/k shape: (head_dim, seq_len, heads, batch)
 
-    position_size = size(position)
-
-    out = zeros(Float32, layer.head_dim, layer.head_dim, position_size[2], position_size[3], layer.n_heads)
-
-    for (indexvec, head) in zip(layer.premade_indexvecs, layer.string_heads)
-        # Head returns a tensor with shape (dim, dim, seq_len, batch), singleton needed for NNlib.scatter!()
-        out_head = rearrange(head(position), (..) --> (.., 1))
-        
-        NNlib.scatter!((_dst, _src) -> _src, out, out_head, [indexvec])
-    end
-
+    out_heads = [head(position) for head in layer.string_heads]
+    out = cat(out_heads...; dims=5)  # (dim, dim, seq_len, batch, heads)
     out = rearrange(out, (:rows, :cols, :seq_len, :batch, :heads) --> (:rows, :cols, :seq_len, :heads, :batch))
     return out
 end
