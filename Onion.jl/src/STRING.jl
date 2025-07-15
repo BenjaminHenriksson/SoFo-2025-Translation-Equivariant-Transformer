@@ -8,23 +8,29 @@
 using Random;rng = Xoshiro(0)
 
 @concrete struct STRING
-    dim
+    model_dim
+    head_dim
+    n_heads
     d_coords
     thetas
-    orthogonal_parameter
+    orthogonal_parameters
 end
 
 Flux.@layer STRING
 
 # dim is the dimensionality of the model (head), d_coords is the dimensionality of the position vector (often R^3)
-function STRING(dim::Int, d_coords::Int)
-    @assert iseven(dim) "Dimensionality (dim) must be even for STRING, dim=$dim was given."
+function STRING(model_dim::Int, d_coords::Int)
+    @assert (model_dim % n_heads == 0) "Model dimension must be divisible by number of heads."
+    head_dim = Int(model_dim / n_heads)
+    @assert iseven(head_dim) "Head dimension must be divisible by 2 for STRING." 
 
     return STRING(
-        dim,                                # Dimensionality of head
-        d_coords,                           # Dimensionality of token position space
-        rand(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
-        rand(rng, Float32, dim, dim),            # Orthogonal parameter
+        model_dim,                              # Dimensionality of head
+        head_dim,
+        n_heads,
+        d_coords,                               # Dimensionality of token position space
+        rand(rng, Float32, head_dim ÷ 2, n_heads),            # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
+        rand(rng, Float32, head_dim, head_dim, n_heads),           # Orthogonal parameter
     )
 end
 
@@ -32,9 +38,9 @@ end
 # Returns rotation matrices of shape (2, 2, k, seq_len, batch)
 function ContinuousRoPE(x::AbstractArray, rope::STRING)
     # Phase: (k, S, B)  ←  broadcast multiply
-    phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
+    phase = rearrange(rope.thetas, (..) --> (.., 1, 1)) .* rearrange(x, (..) --> (1, 1, ..))
 
-    c = rearrange(cos.(phase), (..) --> (1, 1, ..))                             # (k,S,B)
+    c = rearrange(cos.(phase), (..) --> (1, 1, ..)) # (k,S,B)
     s = rearrange(sin.(phase), (..) --> (1, 1, ..))
 
     # Assemble rotation blocks (2,2,k,S,B) without loops
@@ -45,20 +51,25 @@ end
 
 # Expects `position` with shape (d_coords, seq_len, batch)
 # Returns a tensor with shape (dim, dim, seq_len, batch)
+
+# Changing to: postion shape (d_coords, seq_len, 1, batch): singleton over heads
 function (rope::STRING)(position::AbstractArray)
     @assert ndims(position) == 3 "Position must have shape (d_coords, seq_len, batch)."
     @assert size(position,1) == rope.d_coords "Coordinate dimension mismatch."
 
-    # Sum over spatial coordinates → (seq_len, batch)
+    # Insert singleton to broadcast over head
+    position = rearrange(position, (:d_coords, :seq_len, :batch) --> (:d_coords, :seq_len, 1, :batch))
+
+    # Sum over spatial coordinates → (seq_len, 1, batch)
     coordinate_sum = dropdims(sum(position; dims=1), dims=1)
 
-    # Rotation blocks: (2, 2, k, seq_len, batch)
+    # Rotation blocks: (2, 2, k, seq_len, heads, batch)
     MultiRope = ContinuousRoPE(coordinate_sum, rope)
 
     # Orthogonal matrix from eq. 9
-    A  = rope.orthogonal_parameter
-    P  = exp(A - A')
-    PT = P'                                          # (dim, dim)
+    A       = rope.orthogonal_parameters
+    skew    = A - permutedims(A, (2, 1, 3))
+    PT      = P'                                     # (dim, dim)
 
     k   = size(MultiRope,3)                          # number of 2×2 blocks
     S   = size(MultiRope,4)                          # seq_len
