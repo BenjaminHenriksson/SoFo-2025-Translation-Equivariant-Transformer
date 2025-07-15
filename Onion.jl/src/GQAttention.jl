@@ -89,26 +89,27 @@ end
 (attn::Attention)(xq::AbstractArray, xk::AbstractArray, start_pos, rope=identity, mask=0; positions=nothing) =
     attn(xq, xk; start_pos, rope, mask, positions)
 
-#@eval Onion begin
 function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1, rope=identity, mask=0, positions=nothing)
     q = rearrange(attn.wq(xq), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
     k = rearrange(attn.wk(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
     v = rearrange(attn.wv(xk), ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); attn.head_dim)
-    #@show size(v)
-    #@show size(q)
+
     q, k = if rope isa RoPE || rope == identity #compat: || (isnothing(rope) && rope = identity)
         rope(q), rope(k)
     elseif rope isa STRING
+        # position shape: (d_coords, seq_len, batch) 
+        # q/k shape: (head_dim, seq_len, heads, batch)
+
         roped_positions = rope(positions)
         sizes = size(roped_positions)
-        #@show sizes
+
         qk_sizes = size(q)
-        #@show size(roped_positions) # problem below
+
         roped_positions = repeat(reshape(roped_positions, sizes[1], sizes[2], sizes[3], 1, sizes[4]), 1, 1, 1, qk_sizes[3], 1)
-        #@show size(roped_positions)
+
         q2 = reshape(q, qk_sizes[1], 1, qk_sizes[2:end]...)
         k2 = reshape(k, qk_sizes[1], 1, qk_sizes[2:end]...)
-        #@show size(q2)
+
         batched_mul(roped_positions, q2), batched_mul(roped_positions, k2)
         # ^should be batched vec but requires flatten complications
     end
