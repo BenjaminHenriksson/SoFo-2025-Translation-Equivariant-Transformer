@@ -91,15 +91,19 @@ struct MultiHeadSTRING
     head_dim::Int
     n_heads::Int
     string_heads::Vector{STRING}
+    premade_indexvecs::Vector{Int}
 end
 
-Flux.@layer MultiHeadSTRING
+Flux.@layer MultiHeadSTRING trainable=(string_heads)
 
 function MultiHeadSTRING(head_dim::Int, n_heads::Int, d_coords::Int)
+    #@show n_heads
+    #@show [STRING(head_dim, d_coords) for _ in 1:n_heads]
     return MultiHeadSTRING(
         head_dim,
         n_heads,
-        [STRING(head_dim, d_coords) for _ in n_heads]
+        [STRING(head_dim, d_coords) for _ in 1:n_heads],
+        [i for i in 1:n_heads]
     )    
 end
 
@@ -109,16 +113,16 @@ function (layer::MultiHeadSTRING)(position)
 
     position_size = size(position)
 
-    out = zeros(layer.head_dim, position_size[1], position_size[2], head)
+    out = zeros(Float32, layer.head_dim, layer.head_dim, position_size[2], position_size[3], layer.n_heads)
 
-    for (i, head) in enumerate(layer.string_heads)
-        out_head = head(position)
+    for (indexvec, head) in zip(layer.premade_indexvecs, layer.string_heads)
+        # Head returns a tensor with shape (dim, dim, seq_len, batch), singleton needed for NNlib.scatter!()
+        out_head = rearrange(head(position), (..) --> (.., 1))
         
-        scatter!((_dst, _src) -> _src, out, out_head, [i])
+        NNlib.scatter!((_dst, _src) -> _src, out, out_head, [indexvec])
     end
 
-    out = rearrange(out, (:head_dim, :seq_len, :batch, :heads) --> (:head_dim, :seq_len, :heads, :batch))
-
+    out = rearrange(out, (:rows, :cols, :seq_len, :batch, :heads) --> (:rows, :cols, :seq_len, :heads, :batch))
     return out
 end
 
@@ -134,12 +138,14 @@ function STRINGTransformerBlock(
     dim::Int, n_heads::Int, d_coords::Int, n_kv_heads::Int = n_heads, ff_hidden_dim = 4 * dim;
     norm_eps=1f-5, qkv_bias=false, 
 )
+
+    head_dim = Int(dim / n_heads)
     STRINGTransformerBlock(
         Attention(dim, n_heads, n_kv_heads; qkv_bias),
         StarGLU(dim, ff_hidden_dim),
         RMSNorm(dim, eps=norm_eps),
         RMSNorm(dim, eps=norm_eps),
-        STRING( Int(dim/n_heads) , d_coords)
+        MultiHeadSTRING(head_dim, n_heads, d_coords)
     )
 end
 
