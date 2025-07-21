@@ -91,3 +91,5 @@ using Zygote
 
 #println(model_inital)
 #println(model)
+
+grad[1].layers.transformers[1].stringfield
