@@ -62,4 +62,9 @@ export IPAblock
 export CrossFrameIPA
 export pair_encode
 
+include("naive.jl")
+
+# Base model building blocks
+export NaiveRoPE, NaiveTransformerBlock
+
 end
