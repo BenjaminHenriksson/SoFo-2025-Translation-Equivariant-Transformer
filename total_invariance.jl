@@ -56,7 +56,8 @@ function (m::Toy1)(locs)
     return l.AA_decoder(x)
 end
 
-model = Toy1(64, 4)
+model = Toy1(64, 1)
+# eta = 0.001
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 

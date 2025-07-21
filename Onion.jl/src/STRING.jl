@@ -4,6 +4,8 @@
 
 @info "Using local STRING.jl (dev env)"
 
+SCALE = 1f0
+
 # FOR DEV ONLY
 using Random;rng = Xoshiro(0)
 
@@ -23,8 +25,8 @@ function STRING(dim::Int, d_coords::Int)
     return STRING(
         dim,                                # Dimensionality of head
         d_coords,                           # Dimensionality of token position space
-        rand(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
-        rand(rng, Float32, dim, dim),            # Orthogonal parameter
+        randn(Float32, dim ÷ 2), #randn(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
+        randn(Float32, dim, dim), #randn(rng, Float32, dim, dim),            # Orthogonal parameter
     )
 end
 
@@ -33,6 +35,8 @@ end
 function ContinuousRoPE(x::AbstractArray, rope::STRING)
     # Phase: (k, S, B)  ←  broadcast multiply
     phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
+
+    phase *= SCALE
 
     c = rearrange(cos.(phase), (..) --> (1, 1, ..))                             # (k,S,B)
     s = rearrange(sin.(phase), (..) --> (1, 1, ..))
@@ -57,7 +61,7 @@ function (rope::STRING)(position::AbstractArray)
 
     # Orthogonal matrix from eq. 9
     A  = rope.orthogonal_parameter
-    P  = exp(A - A')
+    P  = exp(A - A')*SCALE
     PT = P'                                          # (dim, dim)
 
     k   = size(MultiRope,3)                          # number of 2×2 blocks
