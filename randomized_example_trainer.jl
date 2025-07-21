@@ -4,7 +4,7 @@ using Pkg; Pkg.activate(".")
 using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
 using Test
 
-locs_SCALE = 1f1
+locs_SCALE = 1f0
 
 dat = DLProteinFormats.load(PDBSimpleFlat500);
 
@@ -33,7 +33,7 @@ Flux.@layer Toy1
 function Toy1(dim, depth)
     layers = (;
         loc_encoder = Dense(0 => dim; bias = rand(dim)),
-        transformers = [Onion.STRINGTransformerBlock(dim, 8, 3) for _ in 1:depth],
+        transformers = [Onion.NaiveTransformerBlock(dim, 8, 3) for _ in 1:depth],
         AA_decoder = Dense(dim => 20, bias=true),
     )
     return Toy1(layers)
@@ -59,18 +59,18 @@ function (m::Toy1)(locs)
     return l.AA_decoder(x)
 end
 
-model = Toy1(64, 1)
+model = Toy1(48, 4)
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
 losses = Float32[]
 
 model_inital = deepcopy(model)
 
-epoch = 1
-i = 1
-using Zygote
-#for epoch in 1:20 # 1:100
+#epoch = 1
+#i = 1
+#using Zygote
+for epoch in 1:20 # 1:100
     tot_loss = 0f0
-    #for i in 1:1_000 # 1:10_000
+    for i in 1:1_000 # 1:10_000
         batch = random_batch(dat, L, 10, train_inds)
         l, grad = Flux.withgradient(model) do m
             random_shift = rand(Float32, 3)
@@ -85,11 +85,11 @@ using Zygote
             push!(losses, tot_loss/50)
             tot_loss = 0f0
         end
-        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_STRING.pdf")
-    #end
-#end
+        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_NAIVE.pdf")
+    end
+end
 
 #println(model_inital)
 #println(model)
 
-grad[1].layers.transformers[1].stringfield
+#println(grad[1].layers.transformers[1].rope)

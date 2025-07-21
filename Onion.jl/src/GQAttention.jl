@@ -117,6 +117,9 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
         # @show size(roped_positions)
         batched_mul(roped_positions, q2), batched_mul(roped_positions, k2)
         # ^should be batched vec but requires flatten complications
+    elseif rope isa NaiveRoPE
+        @assert !isnothing(positions) "positions must be provided for NaiveRoPE"
+        rope(q, positions), rope(k, positions)
     end
     
     # Drop singleton column dimension created for batched_mul
