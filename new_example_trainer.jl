@@ -1,5 +1,6 @@
+using Pkg; Pkg.activate(".")
 using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
-dat = DLProteinFormats.load(PDBSimpleFlat);
+dat = DLProteinFormats.load(PDBSimpleFlat500);
  
 L = 30
 train_inds = findall(dat.len .> L)
@@ -65,17 +66,41 @@ function (m::ToyRegularDiffs)(loc_diffs, locs)
     aa_logits = l.AA_decoder(x)
     return aa_logits
 end
+
+
+struct ToySTRINGDiffs{L}
+    layers::L
+end
+Flux.@layer ToySTRINGDiffs
+function ToySTRINGDiffs(dim, depth)
+    layers = (;
+        loc_encoder = Chain(RandomFourierFeatures(3 => dim, 1f0), Dense(dim => dim, bias=false)),
+        transformers = [Onion.STRINGTransformerBlock(dim, 8, 3) for _ in 1:depth],
+        AA_decoder = Dense(dim => 20, bias=false),
+    )
+    return ToySTRINGDiffs(layers)
+end
+function (m::ToySTRINGDiffs)(loc_diffs, locs)
+    l = m.layers
+    x = l.loc_encoder(loc_diffs)
+    for layer in l.transformers
+        x = layer(x; positions=locs)
+    end
+    aa_logits = l.AA_decoder(x)
+    return aa_logits
+end
  
  
-#model = ToyNaiveDiffs(96, 8)
-model = ToyRegularDiffs(96, 8)
+#model = ToyNaiveDiffs(96, 8); losses_filename = "losses_toy_naive.pdf"
+#model = ToyRegularDiffs(96, 8); losses_filename = "losses_toy_regular.pdf"
+model = ToySTRINGDiffs(96, 8); losses_filename = "losses_toy_string.pdf"
  
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
  
 losses = Float32[]
 for epoch in 1:4
     tot_loss = 0f0
-    for i in 1:10000
+    for i in 1:100#10000
         batch = random_batch(dat, L, 10, train_inds);
         l, grad = Flux.withgradient(model) do m
             aalogits = m(batch.loc_diffs, batch.locs)
@@ -88,7 +113,7 @@ for epoch in 1:4
             push!(losses, tot_loss/50)
             tot_loss = 0f0
         end
-        (mod(i, 500) == 0) && savefig(plot(losses), "losses_toy_regular.pdf")
+        (mod(i, 500) == 0) && savefig(plot(losses), losses_filename)
     end
 end
  

@@ -4,11 +4,6 @@
 
 @info "Using local STRING.jl (dev env)"
 
-SCALE = 1f0
-
-# FOR DEV ONLY
-using Random;rng = Xoshiro(0)
-
 @concrete struct STRING
     dim
     d_coords
@@ -25,8 +20,8 @@ function STRING(dim::Int, d_coords::Int)
     return STRING(
         dim,                                # Dimensionality of head
         d_coords,                           # Dimensionality of token position space
-        randn(Float32, dim ÷ 2), #randn(rng, Float32, dim ÷ 2),             # Thetas (FOR DEV ONLY: rand(rng, Float32, dim ÷ 2))
-        randn(Float32, dim, dim), #randn(rng, Float32, dim, dim),            # Orthogonal parameter
+        randn(Float32, dim ÷ 2),           # Thetas
+        randn(Float32, dim, dim),          # Orthogonal parameter
     )
 end
 
@@ -35,8 +30,6 @@ end
 function ContinuousRoPE(x::AbstractArray, rope::STRING)
     # Phase: (k, S, B)  ←  broadcast multiply
     phase = reshape(rope.thetas, :, 1, 1) .* reshape(x, 1, size(x,1), size(x,2))
-
-    phase *= SCALE
 
     c = rearrange(cos.(phase), (..) --> (1, 1, ..))                             # (k,S,B)
     s = rearrange(sin.(phase), (..) --> (1, 1, ..))
@@ -61,7 +54,7 @@ function (rope::STRING)(position::AbstractArray)
 
     # Orthogonal matrix from eq. 9
     A  = rope.orthogonal_parameter
-    P  = exp(A - A')*SCALE
+    P  = exp(A - A')
     PT = P'                                          # (dim, dim)
 
     k   = size(MultiRope,3)                          # number of 2×2 blocks
@@ -101,8 +94,6 @@ end
 Flux.@layer MultiHeadSTRING trainable=(string_heads)
 
 function MultiHeadSTRING(head_dim::Int, n_heads::Int, d_coords::Int)
-    #@show n_heads
-    #@show [STRING(head_dim, d_coords) for _ in 1:n_heads]
     return MultiHeadSTRING(
         head_dim,
         n_heads,
