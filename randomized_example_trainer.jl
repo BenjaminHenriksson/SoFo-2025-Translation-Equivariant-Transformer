@@ -20,7 +20,7 @@ function random_batch(dat, L, B, filt_inds)
         locs[:, :, i] = dat[ind].locs[:, 1, l_range:l_range+L-1]
         AAs[:, i] = dat[ind].AAs[l_range:l_range+L-1]
     end
-    outp =(locs = locs .* locs_SCALE, AAs = Flux.onehotbatch(AAs, 1:20))
+    outp = (locs = locs .* locs_SCALE, AAs = Flux.onehotbatch(AAs, 1:20))
     return outp
 end
 
@@ -68,7 +68,7 @@ model_inital = deepcopy(model)
 #epoch = 1
 #i = 1
 #using Zygote
-for epoch in 1:20 # 1:100
+for epoch in 1:5#20 # 1:100
     tot_loss = 0f0
     for i in 1:1_000 # 1:10_000
         batch = random_batch(dat, L, 10, train_inds)
