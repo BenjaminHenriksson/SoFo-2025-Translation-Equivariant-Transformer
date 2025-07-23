@@ -1,6 +1,6 @@
 using Pkg; Pkg.activate(".")
 using Flux, DLProteinFormats, Onion, RandomFeatureMaps, StatsBase, Plots
-dat = DLProteinFormats.load(PDBSimpleFlat500);
+dat = DLProteinFormats.load(PDBSimpleFlat);
  
 L = 30
 train_inds = findall(dat.len .> L)
@@ -91,16 +91,16 @@ function (m::ToySTRINGDiffs)(loc_diffs, locs)
 end
  
  
-#model = ToyNaiveDiffs(96, 8); losses_filename = "losses_toy_naive.pdf"
+model = ToyNaiveDiffs(96, 8); losses_filename = "losses_toy_naive.pdf"
 #model = ToyRegularDiffs(96, 8); losses_filename = "losses_toy_regular.pdf"
-model = ToySTRINGDiffs(96, 8); losses_filename = "losses_toy_string.pdf"
+#model = ToySTRINGDiffs(96, 8); losses_filename = "losses_toy_string.pdf"
  
 opt_state = Flux.setup(AdamW(eta = 0.001), model)
  
 losses = Float32[]
 for epoch in 1:4
     tot_loss = 0f0
-    for i in 1:100#10000
+    for i in 1:10_000
         batch = random_batch(dat, L, 10, train_inds);
         l, grad = Flux.withgradient(model) do m
             aalogits = m(batch.loc_diffs, batch.locs)
