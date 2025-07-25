@@ -1,10 +1,6 @@
 #Scaled dot product attention
 function sdpa(xq::AbstractArray{T}, xk::AbstractArray{T}, xv::AbstractArray{T}, mask = 0) where T
     A = softmax(batched_mul(batched_transpose(xk), xq) / sqrt(T(size(xq, 1))) .+ mask; dims=1)
-<<<<<<< HEAD
-=======
-    #println(size(xv), size(A))
->>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
     return batched_mul(xv, A)
 end
 
@@ -102,7 +98,6 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
     elseif rope isa MultiHeadSTRING
         # position shape: (d_coords, seq_len, batch) 
         # q/k shape: (head_dim, seq_len, heads, batch)
-<<<<<<< HEAD
         roped_positions = rope(positions)
 
         qk_sizes = size(q)
@@ -110,24 +105,6 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
         q2 = reshape(q, qk_sizes[1], 1, qk_sizes[2:end]...)
         k2 = reshape(k, qk_sizes[1], 1, qk_sizes[2:end]...)
 
-=======
-        # @show size(q)
-        # @show size(k)
-        # @show size(positions)
-        roped_positions = rope(positions)
-        sizes = size(roped_positions)
-
-        qk_sizes = size(q)
-
-        #roped_positions = repeat(reshape(roped_positions, sizes[1], sizes[2], sizes[3], 1, sizes[4]), 1, 1, 1, qk_sizes[3], 1)
-
-        q2 = reshape(q, qk_sizes[1], 1, qk_sizes[2:end]...)
-        k2 = reshape(k, qk_sizes[1], 1, qk_sizes[2:end]...)
-
-        # @show size(q2)
-        # @show size(k2)
-        # @show size(roped_positions)
->>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
         batched_mul(roped_positions, q2), batched_mul(roped_positions, k2)
         # ^should be batched vec but requires flatten complications
     elseif rope isa NaiveRoPE
@@ -139,27 +116,14 @@ function (attn::Attention)(xq::AbstractArray, xk::AbstractArray=xq; start_pos=1,
     if rope isa MultiHeadSTRING
         q, k = dropdims(q; dims=2), dropdims(k; dims=2)
     end
-<<<<<<< HEAD
-=======
-    # @show size(q)
-    # @show size(v)
->>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
     q_per_kv = attn.n_heads ÷ attn.n_kv_heads # for multi-query attention    
     q_heads = rearrange(q, (:head_dim, :len, ..) --> (:head_dim, :len, (..,)))
     k_heads = repeat(k, (:head_dim, :len, ..) --> (:head_dim, :len, (:q_per_kv, ..)); q_per_kv)
     v_heads = repeat(v, (:head_dim, :len, ..) --> (:head_dim, :len, (:q_per_kv, ..)); q_per_kv)
-<<<<<<< HEAD
-=======
-    # @show size(v)
->>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
     output = sdpa(q_heads, k_heads, v_heads, mask) # problem is here
     output = rearrange(output, (:head_dim, :len, (:heads, :batch)) --> ((:head_dim, :heads), :len, :batch); heads=attn.n_heads)
     return attn.wo(output)
 end
-<<<<<<< HEAD
-=======
-#end
->>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
 
 @concrete struct TransformerBlock
     attention
