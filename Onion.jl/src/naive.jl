@@ -9,6 +9,8 @@ function NaiveRoPE(;theta=10000f0)
 end
  
 function (rope::NaiveRoPE)(x, positions)
+    #### x: (dim, seq_len, batch)
+    ####x = rearrange(x, ((:head_dim, :heads), :len, ..) --> (:head_dim, :len, :heads, ..); head_dim=x.head_dim)
     # x: (head_dim, seq_len, n_heads, batch)
     # positions: (d_coords, seq_len, batch)
     D, S, H, B = size(x)
