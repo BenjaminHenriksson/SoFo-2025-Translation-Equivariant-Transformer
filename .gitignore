@@ -3,5 +3,8 @@
 *.jl.mem
 *.pdb
 *.swp
+<<<<<<< HEAD
 *.bson
 *.pdf
+=======
+>>>>>>> 8307f037cf5c424ccfb61ea00a2125fc38d7ceda
