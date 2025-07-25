@@ -6,7 +6,7 @@ using Pkg; Pkg.activate("..")
 #Pkg.add(["ProteinChains", "BSON", "Flux", "ConcreteStructs", "ChainRulesCore", "Einops", "RandomFeatureMaps"])
 using Onion, ProteinChains, BSON, Flux, ConcreteStructs, ChainRulesCore, Einops, RandomFeatureMaps
 using ForwardBackward, Flowfusion, Optimisers, Plots
-
+using OneHotArrays
 
 
 # --- Load data ---
@@ -29,10 +29,13 @@ Flux.@layer SCFlowModel
 # Initialization
 function SCFlowModel(embed_dim::Int, num_layers::Int, num_heads::Int)
     layers = (;
+        # Add masked attention heads
+
         # -------- Layers for both start --------
         embed_time = Chain(RandomFourierFeatures(1 => embed_dim, 1f0), Dense(embed_dim => embed_dim)),
 
         AA_type_encoder = Dense(21 => embed_dim, 1f0, bias = false),
+        AA_atom_encoder = Dense(21 => embed_dim, 1f0, bias = false),
         AA_idx_encoder = RandomFourierFeatures(1 => embed_dim, 1f0),
         
         cross_attention_layers = [Attention(embed_dim, num_heads) for _ in 1:num_layers],
@@ -40,7 +43,7 @@ function SCFlowModel(embed_dim::Int, num_layers::Int, num_heads::Int)
 
 
         # -------- Atom stack start --------
-        atom_type_encoder = RandomFourierFeatures(length(ATOM_TYPES) => embed_dim, 1f0),
+        atom_type_encoder = Dense(length(ATOM_TYPES) => embed_dim, 1f0, bias = false),
         
         atom_transformers = [NaiveTransformerBlock(embed_dim, num_heads, 3) for _ in 1:num_layers],
         # -------- Atom stack end --------
@@ -57,21 +60,26 @@ function SCFlowModel(embed_dim::Int, num_layers::Int, num_heads::Int)
     return SCFlowModel(layers)
 end
 
+(m::SCFlowModel)(prepped_batch) = m(prepped_batch.AAs_res, prepped_batch.AAs_atom, prepped_batch.AA_idx_res, prepped_batch.AA_idx_atom, prepped_batch.backbone_distanceincrement, prepped_batch.atom_calpha_distance, prepped_batch.atom_xyz, prepped_batch.backbone_xyz, prepped_batch.atom_name)
+
 # Forward / backward pass
-function (model::SCFlowModel)(AA_type, AA_idx, backbone_xyz, atom_xyz, atom_name)
-    # AA_type is one-hot (21, n_AAs)
-    # AA_idx is the idx of the associated AA (1, n_atoms)
+function (model::SCFlowModel)(AAs_res, AAs_atom, AA_idx_res, AA_idx_atom, backbone_distanceincrement, atom_calpha_distance, atom_xyz, backbone_xyz, atom_name)
+    # AAs_res is one-hot (21, n_AAs)
+    # AA_idx_res is the idx of the associated AA (1, n_AAs)
+    # AAs_atom is one-hot (21, n_atoms)
+    # AA_idx_atom is the idx of the associated AA (1, n_atoms)
     # backbone_xyz is (3, 4, n_AAs) containing position N, CA, C, O
     # atom_xyz is (3, n_atoms)
     # atom_name is atom type (e.g. "C1"), (n_atom_types, n_atoms) one-hot encoded #N/CA/C/O need to be masked, backbone does not move
     l = model.layers
 
     # Residue embeddings
-    x_res = l.AA_type_encoder(AA_type) + l.AA_idx_encoder(AA_idx) 
+    @show size(AAs_res)
+    x_res = l.AA_type_encoder(AAs_res) + l.AA_idx_encoder(AA_idx_res)
     # ^ position goes in through encoder in transformer
 
     # Sidechain atom embeddings
-    x_atom = l.atom_type_encoder(atom_name) + l.AA_idx_encoder(AA_idx) + l.AA_type_encoder(AA_type) 
+    x_atom = l.atom_type_encoder(atom_name) + l.AA_idx_encoder(AA_idx_atom) + l.AA_atom_encoder(AAs_atom) 
     # ^ position goes in through encoder in transformer
 
     for i in 1:length(l.atom_transformers)
@@ -129,6 +137,7 @@ end
 Generates initial noisy positions for all side chain atoms of proteins in a batch.
 Returns a list of matrices of noisy 3D coordinates.
 """
+# Backbones are in all atom data but should not be moved
 function sampleX0(batch; sigma=1.0f0)
     noisy_batch = []
     for protein in batch
@@ -159,6 +168,50 @@ end
 
 # --- Sampling functions end ----
 
+# --- Data preprocessing ---
+
+calc_dist(p1, p2) = Float32(sqrt(sum((p1 .- p2).^2)))
+
+function prep_data(protein)
+    maskcalpha = protein.atom_name .!= "CA"
+
+    atom_xyz = Float32.(protein.atom_xyz[:, maskcalpha])
+    atom_res = protein.atom_res[maskcalpha]
+
+    atom_name = (onehotbatch(protein.atom_name[maskcalpha], ATOM_TYPES))
+    AAs_res = (onehotbatch(protein.AAs, ProteinChains.AMINOACIDS))
+    AAs_atom = (onehotbatch(protein.AAs[atom_res], ProteinChains.AMINOACIDS))
+    
+    n_res = length(protein.AAs)
+    AA_idx_res = Float32.(reshape(1:n_res, 1, n_res))
+    AA_idx_atom = Float32.(reshape(atom_res, 1, length(atom_res)))
+
+    backbone_xyz = Float32.(protein.backbone_xyz[:, 2, :])
+
+    backbone_distanceincrement = map(calc_dist, eachcol(backbone_xyz[:, 2:end]), eachcol(backbone_xyz[:, 1:end-1]))
+    backbone_distanceincrement = [backbone_distanceincrement; zero(Float32)]
+    backbone_distanceincrement = reshape(backbone_distanceincrement, 1, size(backbone_distanceincrement)...)
+
+    atom_calpha_distance = map(calc_dist, eachcol(atom_xyz), eachcol(backbone_xyz[:, atom_res]))
+    atom_calpha_distance = reshape(atom_calpha_distance, 1, size(atom_calpha_distance)...)
+
+    return (; AAs_res, AAs_atom, AA_idx_res, AA_idx_atom, backbone_distanceincrement, atom_calpha_distance, atom_xyz, backbone_xyz, atom_name)
+end
+
+# --- Data preprocessing end ---
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # --- Training process ---
@@ -177,17 +230,19 @@ opt_state = Flux.setup(AdamW(eta = eta), model)
 iters = 4000
 batch_size = 4
 T = Float32
-
+#=
 for i in 1:iters
     # Set up a batch of training pairs, and t
     batch = sample_batch(allatom_dataset, batch_size)
     X0_data = sampleX0(batch)
     X1_data = sampleX1(batch)
+
+    prepped_batch = prep_data.(batch)
     
     # Gradient & update
     loss, grad = Flux.withgradient(model) do m
         total_loss = 0.0f0
-        for (protein, x0, x1) in zip(batch, X0_data, X1_data)
+        for (p_data, x0, x1) in zip(prepped_batch, X0_data, X1_data)
             n_atoms = size(x1, 2)
             t = rand(T, 1, n_atoms) # time must be broadcastable to the state
 
@@ -197,13 +252,7 @@ for i in 1:iters
             # Construct the bridge
             Xt = bridge(P, X0, X1, t)
             
-            v = m(
-                protein.AAs, 
-                protein.atom_res', # Check dimensions
-                protein.backbone_xyz,
-                tensor(Xt),
-                protein.atom_name
-            )
+            v = m(p_data)
 
             total_loss += floss(P, v, X1, scalefloss(P, t))
         end
@@ -212,6 +261,41 @@ for i in 1:iters
     Flux.update!(opt_state, model, grad[1])
 
     (i % 10 == 0) && println("i: $i; Loss: $loss")
+end=#
+
+batch_size = 4
+batch = sample_batch(allatom_dataset, batch_size)
+X0_data = vcat(sampleX0(batch)...)
+X1_data = vcat(sampleX1(batch)...)
+
+prepped_batch = prep_data.(batch)
+
+X0 = ContinuousState(X0_data)
+X1 = ContinuousState(X1_data)
+
+t = rand(T, 1, size(X1.state, 2))
+
+Xt = bridge(P, X0, X1, t)
+
+loss, grad = Flux.withgradient(model) do m
+    v = m(prepped_batch)
+    return floss(P, v, X1, scalefloss(P, t))
 end
 
+Flux.update!(opt_state, model, grad[1])
 
+
+
+
+# --- Template for generating side chain atoms ---
+function makeX1predictor(data)
+    b = prep_data(data)
+    function f(X0)
+        X1 = model(b.AAs_res, b.AAs_atom, b.AA_idx_res, b.AA_idx_atom, b.backbone_distanceincrement, b.atom_calpha_distance, X0, b.backbone_xyz, b.atom_name)
+        return X1
+    end
+ 
+    return f
+end
+ #gen(P, X0, makeX1predictor(input))
+ 
